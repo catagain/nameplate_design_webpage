@@ -382,6 +382,59 @@ input[type="checkbox"] {
     margin-bottom: 0;
 }
 
+/* 位置輸入組 - 包含滑塊、數字輸入和置中按鈕 */
+.position-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.position-input-group .slider-control {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.offset-number-input {
+    width: 60px;
+    padding: 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+    background-color: var(--bg-primary);
+    color: var(--text-color);
+    transition: all 0.2s ease;
+}
+
+.offset-number-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.btn-center {
+    padding: 8px 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-center:hover {
+    background-color: #1e40af;
+    box-shadow: var(--shadow);
+}
+
+.btn-center:active {
+    transform: translateY(1px);
+}
+
 .form-group.hint {
     background-color: var(--bg-light);
     padding: 8px 12px;
@@ -411,6 +464,9 @@ input[type="checkbox"] {
     display: flex;
     flex-direction: column;
     gap: 30px;
+    position: sticky;
+    top: 20px;
+    height: fit-content;
 }
 
 .preview-container {
@@ -570,7 +626,7 @@ input[type="checkbox"] {
 /* ========== 通知提示 ========== */
 .notification {
     position: fixed;
-    top: 20px;
+    top: 80px;
     right: 20px;
     padding: 16px 20px;
     border-radius: 6px;

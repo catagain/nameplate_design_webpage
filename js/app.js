@@ -49,6 +49,25 @@ function attachEventListeners() {
     // 文字位置 - 職位
     document.getElementById('positionOffsetX').addEventListener('input', handlePositionOffsetXChange);
     document.getElementById('positionOffsetY').addEventListener('input', handlePositionOffsetYChange);
+
+    // Number Input 事件監聽器
+    // 姓名
+    document.getElementById('nameOffsetXInput').addEventListener('change', (e) => handleNumberInputChange('nameOffsetX', e.target.value));
+    document.getElementById('nameOffsetYInput').addEventListener('change', (e) => handleNumberInputChange('nameOffsetY', e.target.value));
+    // 公司
+    document.getElementById('companyOffsetXInput').addEventListener('change', (e) => handleNumberInputChange('companyOffsetX', e.target.value));
+    document.getElementById('companyOffsetYInput').addEventListener('change', (e) => handleNumberInputChange('companyOffsetY', e.target.value));
+    // 職位
+    document.getElementById('positionOffsetXInput').addEventListener('change', (e) => handleNumberInputChange('positionOffsetX', e.target.value));
+    document.getElementById('positionOffsetYInput').addEventListener('change', (e) => handleNumberInputChange('positionOffsetY', e.target.value));
+
+    // Center Button 事件監聽器
+    document.getElementById('nameXCenterBtn').addEventListener('click', () => handleCenterPosition('nameOffsetX'));
+    document.getElementById('nameYCenterBtn').addEventListener('click', () => handleCenterPosition('nameOffsetY'));
+    document.getElementById('companyXCenterBtn').addEventListener('click', () => handleCenterPosition('companyOffsetX'));
+    document.getElementById('companyYCenterBtn').addEventListener('click', () => handleCenterPosition('companyOffsetY'));
+    document.getElementById('positionXCenterBtn').addEventListener('click', () => handleCenterPosition('positionOffsetX'));
+    document.getElementById('positionYCenterBtn').addEventListener('click', () => handleCenterPosition('positionOffsetY'));
     
     // Canvas 拖曳事件
     const canvas = document.getElementById('nameplate');
@@ -96,6 +115,14 @@ function handlePositionChange(e) {
 
 function updateCharCount(count) {
     document.getElementById('charCount').textContent = count;
+}
+
+/**
+ * 格式化並顯示位移值（只顯示整數）
+ */
+function updateOffsetDisplay(elementId, value) {
+    const intValue = Math.round(value);
+    document.getElementById(elementId).textContent = `${intValue}px`;
 }
 
 // ========== 背景設置處理 ==========
@@ -181,7 +208,8 @@ function handleTextShadowChange(e) {
 function handleNameOffsetXChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.nameOffsetX = value;
-    document.getElementById('nameOffsetXValue').textContent = `${value}px`;
+    updateOffsetDisplay('nameOffsetXValue', value);
+    document.getElementById('nameOffsetXInput').value = value;
     triggerRender();
     saveSettings();
 }
@@ -189,7 +217,8 @@ function handleNameOffsetXChange(e) {
 function handleNameOffsetYChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.nameOffsetY = value;
-    document.getElementById('nameOffsetYValue').textContent = `${value}px`;
+    updateOffsetDisplay('nameOffsetYValue', value);
+    document.getElementById('nameOffsetYInput').value = value;
     triggerRender();
     saveSettings();
 }
@@ -198,7 +227,8 @@ function handleNameOffsetYChange(e) {
 function handleCompanyOffsetXChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.companyOffsetX = value;
-    document.getElementById('companyOffsetXValue').textContent = `${value}px`;
+    updateOffsetDisplay('companyOffsetXValue', value);
+    document.getElementById('companyOffsetXInput').value = value;
     triggerRender();
     saveSettings();
 }
@@ -206,7 +236,8 @@ function handleCompanyOffsetXChange(e) {
 function handleCompanyOffsetYChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.companyOffsetY = value;
-    document.getElementById('companyOffsetYValue').textContent = `${value}px`;
+    updateOffsetDisplay('companyOffsetYValue', value);
+    document.getElementById('companyOffsetYInput').value = value;
     triggerRender();
     saveSettings();
 }
@@ -215,7 +246,8 @@ function handleCompanyOffsetYChange(e) {
 function handlePositionOffsetXChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.positionOffsetX = value;
-    document.getElementById('positionOffsetXValue').textContent = `${value}px`;
+    updateOffsetDisplay('positionOffsetXValue', value);
+    document.getElementById('positionOffsetXInput').value = value;
     triggerRender();
     saveSettings();
 }
@@ -223,9 +255,42 @@ function handlePositionOffsetXChange(e) {
 function handlePositionOffsetYChange(e) {
     const value = parseInt(e.target.value);
     window.nameplateState.positionOffsetY = value;
-    document.getElementById('positionOffsetYValue').textContent = `${value}px`;
+    updateOffsetDisplay('positionOffsetYValue', value);
+    document.getElementById('positionOffsetYInput').value = value;
     triggerRender();
     saveSettings();
+}
+
+// ========== Number Input 和 Center Button 處理 ==========
+function handleNumberInputChange(offsetKey, value) {
+    const numValue = Math.max(-450, Math.min(450, parseInt(value) || 0));
+    
+    window.nameplateState[offsetKey] = numValue;
+    
+    // 更新滑塊
+    document.getElementById(offsetKey).value = numValue;
+    updateOffsetDisplay(`${offsetKey}Value`, numValue);
+    
+    // 更新number input（防止超出範圍）
+    document.getElementById(`${offsetKey}Input`).value = numValue;
+    
+    triggerRender();
+    saveSettings();
+}
+
+function handleCenterPosition(offsetKey) {
+    window.nameplateState[offsetKey] = 0;
+    
+    // 更新滑塊
+    document.getElementById(offsetKey).value = 0;
+    updateOffsetDisplay(`${offsetKey}Value`, 0);
+    
+    // 更新number input
+    document.getElementById(`${offsetKey}Input`).value = 0;
+    
+    triggerRender();
+    saveSettings();
+    showNotification(`${getTextLabel(offsetKey.split('Offset')[0])} 已置中`, 'success');
 }
 
 // ========== Canvas 拖曳處理 ==========
@@ -275,7 +340,7 @@ function handleCanvasMouseMove(e) {
 
         // 更新狀態
         const newOffsetX = Math.max(-450, Math.min(450, dragState.startOffsetX + deltaX));
-        const newOffsetY = Math.max(-100, Math.min(100, dragState.startOffsetY + deltaY));
+        const newOffsetY = Math.max(-200, Math.min(200, dragState.startOffsetY + deltaY));
 
         window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
         window.nameplateState[`${dragState.selectedText}OffsetY`] = newOffsetY;
@@ -283,8 +348,12 @@ function handleCanvasMouseMove(e) {
         // 更新滑塊
         document.getElementById(`${dragState.selectedText}OffsetX`).value = newOffsetX;
         document.getElementById(`${dragState.selectedText}OffsetY`).value = newOffsetY;
-        document.getElementById(`${dragState.selectedText}OffsetXValue`).textContent = `${newOffsetX}px`;
-        document.getElementById(`${dragState.selectedText}OffsetYValue`).textContent = `${newOffsetY}px`;
+        updateOffsetDisplay(`${dragState.selectedText}OffsetXValue`, newOffsetX);
+        updateOffsetDisplay(`${dragState.selectedText}OffsetYValue`, newOffsetY);
+        
+        // 更新number input
+        document.getElementById(`${dragState.selectedText}OffsetXInput`).value = newOffsetX;
+        document.getElementById(`${dragState.selectedText}OffsetYInput`).value = newOffsetY;
 
         triggerRender();
     } else {
@@ -351,9 +420,9 @@ function handleReset() {
         document.getElementById('nameOffsetX').value = 0;
         document.getElementById('nameOffsetY').value = 0;
         document.getElementById('companyOffsetX').value = 0;
-        document.getElementById('companyOffsetY').value = 0;
+        document.getElementById('companyOffsetY').value = 100;
         document.getElementById('positionOffsetX').value = 0;
-        document.getElementById('positionOffsetY').value = 0;
+        document.getElementById('positionOffsetY').value = -100;
 
         // 重置狀態
         window.nameplateState = {
@@ -367,9 +436,9 @@ function handleReset() {
             nameOffsetX: 0,
             nameOffsetY: 0,
             companyOffsetX: 0,
-            companyOffsetY: 0,
+            companyOffsetY: 100,
             positionOffsetX: 0,
-            positionOffsetY: 0
+            positionOffsetY: -100
         };
 
         // 清除圖片
@@ -380,12 +449,21 @@ function handleReset() {
         document.getElementById('textColorValue').textContent = '#000000';
         document.getElementById('fontSizeValue').textContent = '48px';
         document.getElementById('opacityValue').textContent = '100%';
-        document.getElementById('nameOffsetXValue').textContent = '0px';
-        document.getElementById('nameOffsetYValue').textContent = '0px';
-        document.getElementById('companyOffsetXValue').textContent = '0px';
-        document.getElementById('companyOffsetYValue').textContent = '0px';
-        document.getElementById('positionOffsetXValue').textContent = '0px';
-        document.getElementById('positionOffsetYValue').textContent = '0px';
+        updateOffsetDisplay('nameOffsetXValue', 0);
+        updateOffsetDisplay('nameOffsetYValue', 0);
+        updateOffsetDisplay('companyOffsetXValue', 0);
+        updateOffsetDisplay('companyOffsetYValue', 100);
+        updateOffsetDisplay('positionOffsetXValue', 0);
+        updateOffsetDisplay('positionOffsetYValue', -100);
+        
+        // 重置number input
+        document.getElementById('nameOffsetXInput').value = 0;
+        document.getElementById('nameOffsetYInput').value = 0;
+        document.getElementById('companyOffsetXInput').value = 0;
+        document.getElementById('companyOffsetYInput').value = 100;
+        document.getElementById('positionOffsetXInput').value = 0;
+        document.getElementById('positionOffsetYInput').value = -100;
+        
         updateCharCount(0);
 
         triggerRender();
@@ -533,12 +611,20 @@ function loadPreferredSettings() {
             document.getElementById('textColorValue').textContent = settings.state.textColor;
             document.getElementById('fontSizeValue').textContent = `${settings.state.fontSize}px`;
             document.getElementById('opacityValue').textContent = `${settings.opacity || 100}%`;
-            document.getElementById('nameOffsetXValue').textContent = `${settings.state.nameOffsetX || 0}px`;
-            document.getElementById('nameOffsetYValue').textContent = `${settings.state.nameOffsetY || 0}px`;
-            document.getElementById('companyOffsetXValue').textContent = `${settings.state.companyOffsetX || 0}px`;
-            document.getElementById('companyOffsetYValue').textContent = `${settings.state.companyOffsetY || 0}px`;
-            document.getElementById('positionOffsetXValue').textContent = `${settings.state.positionOffsetX || 0}px`;
-            document.getElementById('positionOffsetYValue').textContent = `${settings.state.positionOffsetY || 0}px`;
+            updateOffsetDisplay('nameOffsetXValue', settings.state.nameOffsetX || 0);
+            updateOffsetDisplay('nameOffsetYValue', settings.state.nameOffsetY || 0);
+            updateOffsetDisplay('companyOffsetXValue', settings.state.companyOffsetX || 0);
+            updateOffsetDisplay('companyOffsetYValue', settings.state.companyOffsetY || 0);
+            updateOffsetDisplay('positionOffsetXValue', settings.state.positionOffsetX || 0);
+            updateOffsetDisplay('positionOffsetYValue', settings.state.positionOffsetY || 0);
+            
+            // 更新number input值
+            document.getElementById('nameOffsetXInput').value = settings.state.nameOffsetX || 0;
+            document.getElementById('nameOffsetYInput').value = settings.state.nameOffsetY || 0;
+            document.getElementById('companyOffsetXInput').value = settings.state.companyOffsetX || 0;
+            document.getElementById('companyOffsetYInput').value = settings.state.companyOffsetY || 0;
+            document.getElementById('positionOffsetXInput').value = settings.state.positionOffsetX || 0;
+            document.getElementById('positionOffsetYInput').value = settings.state.positionOffsetY || 0;
             
             updateCharCount(settings.state.name.length);
 

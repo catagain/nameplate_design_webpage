@@ -70,11 +70,13 @@ class NameplateRenderer {
 
     /**
      * 取得文字位置信息
+     * 座標中心點在 Canvas 正中間 (500, 150)
      */
     getTextPositions(state) {
         const { name, company, position, fontSize } = state;
         const { width, height } = this.canvas;
         
+        // 基礎偏移 - 用於排列多行文字
         const nameOffsetX = state.nameOffsetX || 0;
         const nameOffsetY = state.nameOffsetY || 0;
         const companyOffsetX = state.companyOffsetX || 0;
@@ -82,35 +84,46 @@ class NameplateRenderer {
         const positionOffsetX = state.positionOffsetX || 0;
         const positionOffsetY = state.positionOffsetY || 0;
 
-        const totalLines = (company ? 1 : 0) + (position ? 1 : 0) + 1;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        // 計算應該有多少行
+        const hasCompany = company && company.length > 0;
+        const hasPosition = position && position.length > 0;
+        const totalLines = (hasCompany ? 1 : 0) + 1 + (hasPosition ? 1 : 0);
+        
         const lineHeight = fontSize * 1.4;
-        const totalHeight = lineHeight * totalLines;
-        const baseStartY = (height - totalHeight) / 2 + fontSize / 2;
+        const smallFontSize = fontSize * 0.5;
+        const smallLineHeight = smallFontSize * 1.4;
 
         const positions = [];
-        let currentY = baseStartY;
+        let currentY = centerY;
+        
+        // 計算起始 Y（使所有文字垂直居中）
+        const totalHeight = (hasCompany ? smallLineHeight : 0) + lineHeight + (hasPosition ? smallLineHeight : 0);
+        currentY = centerY - totalHeight / 2 + (hasCompany ? smallLineHeight / 2 : lineHeight / 2);
 
-        if (company) {
+        if (hasCompany) {
             positions.push({
                 type: 'company',
                 text: company,
-                x: width / 2 + companyOffsetX,
+                x: centerX + companyOffsetX,
                 y: currentY + companyOffsetY,
-                baseX: width / 2,
+                baseX: centerX,
                 baseY: currentY,
-                fontSize: fontSize * 0.5,
+                fontSize: smallFontSize,
                 width: 100,
-                height: fontSize * 0.5
+                height: smallFontSize
             });
-            currentY += lineHeight;
+            currentY += smallLineHeight;
         }
 
         positions.push({
             type: 'name',
             text: name,
-            x: width / 2 + nameOffsetX,
+            x: centerX + nameOffsetX,
             y: currentY + nameOffsetY,
-            baseX: width / 2,
+            baseX: centerX,
             baseY: currentY,
             fontSize: fontSize,
             width: 150,
@@ -118,17 +131,17 @@ class NameplateRenderer {
         });
         currentY += lineHeight;
 
-        if (position) {
+        if (hasPosition) {
             positions.push({
                 type: 'position',
                 text: position,
-                x: width / 2 + positionOffsetX,
-                y: currentY + positionOffsetY,
-                baseX: width / 2,
-                baseY: currentY,
-                fontSize: fontSize * 0.5,
+                x: centerX + positionOffsetX,
+                y: centerY + positionOffsetY - (hasCompany ? smallLineHeight / 2 : 0) + lineHeight / 2,
+                baseX: centerX,
+                baseY: centerY + positionOffsetY - (hasCompany ? smallLineHeight / 2 : 0),
+                fontSize: smallFontSize,
                 width: 100,
-                height: fontSize * 0.5
+                height: smallFontSize
             });
         }
 
@@ -282,13 +295,13 @@ window.nameplateState = {
     fontSize: 48,
     textColor: '#ffffff',
     textShadow: false,
-    // 分別的位置偏移
+    // 分別的位置偏移 (預設值)
     nameOffsetX: 0,
     nameOffsetY: 0,
     companyOffsetX: 0,
-    companyOffsetY: 0,
+    companyOffsetY: 100,      // 公司名稱預設向下100px
     positionOffsetX: 0,
-    positionOffsetY: 0
+    positionOffsetY: -100     // 職位預設向上100px
 };
 
 /**
