@@ -188,9 +188,24 @@ app.listen(3000, () => console.log('Server running on port 3000'));
 
 MIT License - 自由使用和修改
 
+[查看完整許可證](https://opensource.org/licenses/MIT)
+
+## 製作者
+
+Made with ❤️ by **貓又**
+
+## GitHub 資源庫
+
+https://github.com/catagain/nameplate_design_webpage
+
+歡迎 Star ⭐ 和提交 Pull Request！
+
 ## 支持和反饋
 
-如有問題或建議，請聯繫我或提交 Issue。
+如有問題或建議，請：
+- 📧 在 GitHub 上提交 Issue
+- 🔗 訪問 [GitHub 資源庫](https://github.com/catagain/nameplate_design_webpage)
+- 💬 提交 Pull Request
 
 ---
 
