@@ -40,8 +40,8 @@ namePlate_web/
 ### 方式一：直接打開
 1. 在瀏覽器中打開 `index.html` 檔案
 2. 輸入參會者資訊
-3. 自訂義背景和文字樣式
-4. 點擊「下載為 PNG」按鈕
+3. 自訂背景和文字樣式
+4. 點擊「下載為 PNG」按鈕（或按 ctrl + S 快捷鍵直接下載）
 
 ### 方式二：使用本地伺服器
 ```bash
@@ -73,16 +73,9 @@ php -S localhost:8000
 3. **圖片透明度**：調整圖片背後的可見程度
 
 ### 文字樣式
-- **名字字號**：24-72px，使用滑塊調整
+- **文字大小**：24-72px，使用滑塊調整
 - **文字顏色**：選擇名字的顯示顏色
 - **文字陰影**：在淺色背景下啟用，增強可讀性
-
-### 快速預設
-點擊快速預設按鈕快速應用預定義的設計風格：
-- 🏢 **企業風格**：深藍背景、白色文字
-- 💙 **藍色優雅**：淺藍背景、深灰文字
-- ⚪ **現代簡約**：白色背景、黑色文字
-- ⚡ **科技感**：深色背景、淺紫文字
 
 ### 下載
 1. 編輯完成後，點擊「下載為 PNG」
@@ -121,37 +114,12 @@ Content-Type: application/json
 document.getElementById('apiSection').style.display = 'block';
 ```
 
-### 示例後端實現（Node.js Express）
-```javascript
-const express = require('express');
-const app = express();
-
-app.use(express.json({ limit: '50mb' }));
-
-app.post('/api/nameplate/upload', (req, res) => {
-  const { name, company, position, image, timestamp } = req.body;
-  
-  // 處理Base64圖片
-  const buffer = Buffer.from(image.split(',')[1], 'base64');
-  
-  // 保存或處理圖片...
-  
-  res.json({
-    success: true,
-    id: `nameplate_${Date.now()}`,
-    message: '上傳成功'
-  });
-});
-
-app.listen(3000, () => console.log('Server running on port 3000'));
-```
-
 ## 本地儲存
 
 應用自動將編輯設置保存到瀏覽器的 LocalStorage：
 - 所有編輯內容在下次訪問時自動恢復
 - 點擊「重置」按鈕可清除保存的設置
-- 瀏覽器隱身模式不會保存設置
+- 瀏覽器無痕模式不會保存設置
 
 ## 瀏覽器相容性
 
@@ -159,14 +127,6 @@ app.listen(3000, () => console.log('Server running on port 3000'));
 ✅ Firefox 88+
 ✅ Safari 14+
 ✅ 行動瀏覽器（iOS Safari、Android Chrome）
-
-## 技術堆棧
-
-- **HTML5** - 頁面結構
-- **CSS3** - 響應式設計
-- **Vanilla JavaScript** - 無依賴的純JS實現
-- **Canvas API** - 圖像渲染和處理
-- **Fetch API** - API通訊
 
 ## 性能優化
 
@@ -176,7 +136,7 @@ app.listen(3000, () => console.log('Server running on port 3000'));
 
 ## 版本歷史
 
-### v1.0.0 (2024.04.10)
+### v1.0.0 (2026.04.16)
 - ✨ 初始版本發佈
 - ✅ 完整的編輯功能
 - ✅ 即時預覽
@@ -188,25 +148,12 @@ app.listen(3000, () => console.log('Server running on port 3000'));
 
 MIT License - 自由使用和修改
 
-[查看完整許可證](https://opensource.org/licenses/MIT)
-
 ## 製作者
 
 Made with ❤️ by **貓又**
 
-## GitHub 資源庫
-
-https://github.com/catagain/nameplate_design_webpage
-
-歡迎 Star ⭐ 和提交 Pull Request！
-
 ## 支持和反饋
 
-如有問題或建議，請：
-- 📧 在 GitHub 上提交 Issue
-- 🔗 訪問 [GitHub 資源庫](https://github.com/catagain/nameplate_design_webpage)
-- 💬 提交 Pull Request
-
----
+如果有問題，可以直接發 issue 或是聯繫我，感謝！
 
 **提示**：定期保存你的設計！使用瀏覽器的 LocalStorage 會自動保存，但建議定期導出 PNG 備份重要的設計。
