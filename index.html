@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- 深色模式切換按鈕 -->
+    <button id="darkModeToggle" class="dark-mode-toggle" title="切換深色模式" aria-label="切換深色模式">
+        <span class="theme-icon">暗色</span>
+    </button>
+
     <div class="container">
         <header>
             <h1>會議名牌編輯器</h1>
@@ -101,7 +106,7 @@
                     <h2>文字樣式</h2>
                     
                     <div class="form-group">
-                        <label for="fontSize">名字字號</label>
+                        <label for="fontSize">文字大小</label>
                         <div class="slider-control">
                             <input 
                                 type="range" 

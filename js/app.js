@@ -1,5 +1,5 @@
 /**
- * 会议名牌编辑器 - 主应用逻辑
+ * 會議名牌編輯器
  */
 
 // ========== 初始化 ==========
@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initRenderer();
     attachEventListeners();
     loadPreferredSettings();
+    initDarkMode();
 });
 
 // ========== 事件監聽 ==========
@@ -36,9 +37,12 @@ function attachEventListeners() {
     document.querySelectorAll('.preset-btn').forEach(btn => {
         btn.addEventListener('click', handlePresetClick);
     });
+
+    // 深色模式
+    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
 }
 
-// ========== 基本信息處理 ==========
+// ========== 基本資訊處理 ==========
 function handleNameChange(e) {
     const value = e.target.value;
     window.nameplateState.name = value || '名字';
@@ -144,7 +148,7 @@ function handleTextShadowChange(e) {
     saveSettings();
 }
 
-// ========== 操作处理 ==========
+// ========== 操作處理 ==========
 function handleDownload() {
     const name = window.nameplateState.name || 'nameplate';
     const timestamp = new Date().toISOString().slice(0, 10);
@@ -368,3 +372,50 @@ document.addEventListener('keydown', (e) => {
         handleDownload();
     }
 });
+
+// ========== 深色模式 ==========
+/**
+ * 初始化深色模式
+ */
+function initDarkMode() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+    updateThemeIcon();
+}
+
+/**
+ * 設置主題
+ */
+function setTheme(theme) {
+    const html = document.documentElement;
+    if (theme === 'dark') {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+    } else {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+    }
+    updateThemeIcon();
+}
+
+/**
+ * 更新主題圖標
+ */
+function updateThemeIcon() {
+    const html = document.documentElement;
+    const icon = document.querySelector('.theme-icon');
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    
+    if (icon) {
+        icon.textContent = isDark ? 'Light mode' : 'Dark mode';
+    }
+}
+
+/**
+ * 切換深色模式
+ */
+function toggleDarkMode() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    setTheme(isDark ? 'light' : 'dark');
+}
