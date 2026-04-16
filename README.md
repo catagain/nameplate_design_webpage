@@ -108,7 +108,7 @@ Content-Type: application/json
 ```
 
 ### 啟用API功能
-在代碼中取消註釋以下行以啟用API上傳：
+在代碼中取消註釋以下這行以啟用API上傳：
 ```javascript
 // 在 index.html 中：
 document.getElementById('apiSection').style.display = 'block';
