@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>會議名牌編輯器</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>會議名牌編輯器</h1>
+            <p class="subtitle">建立及下載會議桌上名牌圖片</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 左側編輯面板 -->
+            <aside class="edit-panel">
+                <section class="edit-section">
+                    <h2>基本資訊</h2>
+                    
+                    <div class="form-group">
+                        <label for="nameInput">姓名</label>
+                        <input 
+                            type="text" 
+                            id="nameInput" 
+                            placeholder="輸入參與者名字"
+                            maxlength="20"
+                        >
+                        <span class="char-count"><span id="charCount">0</span>/20</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="companyInput">公司/部門</label>
+                        <input 
+                            type="text" 
+                            id="companyInput" 
+                            placeholder="輸入公司或部門（可選）"
+                            maxlength="30"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="positionInput">職位</label>
+                        <input 
+                            type="text" 
+                            id="positionInput" 
+                            placeholder="輸入職位（可選）"
+                            maxlength="30"
+                        >
+                    </div>
+                </section>
+
+                <section class="edit-section">
+                    <h2>背景設定</h2>
+                    
+                    <div class="form-group">
+                        <label>背景顏色</label>
+                        <div class="color-selector">
+                            <input 
+                                type="color" 
+                                id="bgColorInput" 
+                                value="#1e3a5f"
+                            >
+                            <span id="colorValue">#1e3a5f</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>背景圖片</label>
+                        <input 
+                            type="file" 
+                            id="bgImageInput" 
+                            accept="image/*"
+                            class="file-input"
+                        >
+                        <div class="image-preview" id="imagePreview">
+                            <span>未選擇圖片</span>
+                        </div>
+                        <button id="clearImageBtn" class="btn btn-secondary" style="display: none;">
+                            清除圖片
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bgOpacity">圖片透明度</label>
+                        <div class="opacity-control">
+                            <input 
+                                type="range" 
+                                id="bgOpacity" 
+                                min="0" 
+                                max="100" 
+                                value="100"
+                            >
+                            <span id="opacityValue">100%</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="edit-section">
+                    <h2>文字樣式</h2>
+                    
+                    <div class="form-group">
+                        <label for="fontSize">名字字號</label>
+                        <div class="slider-control">
+                            <input 
+                                type="range" 
+                                id="fontSize" 
+                                min="24" 
+                                max="72" 
+                                value="48"
+                            >
+                            <span id="fontSizeValue">48px</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>文字顏色</label>
+                        <div class="color-selector">
+                            <input 
+                                type="color" 
+                                id="textColorInput" 
+                                value="#000000"
+                            >
+                            <span id="textColorValue">#000000</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="textShadow">文字陰影</label>
+                        <input 
+                            type="checkbox" 
+                            id="textShadow"
+                        >
+                        <span>啟用陰影效果</span>
+                    </div>
+                </section>
+
+                <section class="action-section">
+                    <button id="downloadBtn" class="btn btn-primary">
+                        ⬇️ 下載為 PNG
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        🔄 重置
+                    </button>
+                </section>
+            </aside>
+
+            <!-- 右側預覽面板 -->
+            <main class="preview-panel">
+                <div class="preview-container">
+                    <div class="canvas-wrapper">
+                        <canvas 
+                            id="nameplate" 
+                            width="1000" 
+                            height="300"
+                        ></canvas>
+                    </div>
+                    <div class="preview-info">
+                        <p>預覽尺寸: 1000×300 px (20cm×6cm @150dpi)</p>
+                        <p class="hint">💡 實時預覽 - 編輯內容時自動更新</p>
+                    </div>
+                </div>
+
+                <!-- 快速預設 -->
+                <section class="presets">
+                    <h3>快速預設</h3>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-preset="corporate">企業風格</button>
+                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
+                        <button class="preset-btn" data-preset="modern">現代簡約</button>
+                        <button class="preset-btn" data-preset="tech">科技感</button>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- API 集成部分 (未來功能) -->
+        <footer class="api-section" id="apiSection" style="display: none;">
+            <h3>API 集成 (測試)</h3>
+            <div class="form-group">
+                <label for="uploadUrl">會議系統 API URL</label>
+                <input 
+                    type="text" 
+                    id="uploadUrl" 
+                    placeholder="https://api.meeting-system.com/nameplate"
+                >
+            </div>
+            <button id="uploadBtn" class="btn btn-primary">上傳到會議系統</button>
+        </footer>
+    </div>
+
+    <!-- 載入提示 -->
+    <div id="loading" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>處理中...</p>
+    </div>
+
+    <!-- 成功提示 -->
+    <div id="notification" class="notification" style="display: none;"></div>
+
+    <script src="js/renderer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
