@@ -666,6 +666,44 @@ function saveSettings() {
     }
 }
 
+function syncControlsFromState(state, opacity = 100) {
+    document.getElementById('nameInput').value = state.name || '';
+    document.getElementById('companyInput').value = state.company || '';
+    document.getElementById('positionInput').value = state.position || '';
+    document.getElementById('bgColorInput').value = state.bgColor;
+    document.getElementById('textColorInput').value = state.textColor;
+    document.getElementById('fontSize').value = state.fontSize;
+    document.getElementById('bgOpacity').value = opacity;
+    document.getElementById('textShadow').checked = state.textShadow;
+
+    document.getElementById('nameOffsetX').value = state.nameOffsetX || 0;
+    document.getElementById('nameOffsetY').value = state.nameOffsetY || 0;
+    document.getElementById('companyOffsetX').value = state.companyOffsetX || 0;
+    document.getElementById('companyOffsetY').value = state.companyOffsetY || 0;
+    document.getElementById('positionOffsetX').value = state.positionOffsetX || 0;
+    document.getElementById('positionOffsetY').value = state.positionOffsetY || 0;
+
+    document.getElementById('colorValue').textContent = state.bgColor;
+    document.getElementById('textColorValue').textContent = state.textColor;
+    document.getElementById('fontSizeValue').textContent = `${state.fontSize}px`;
+    document.getElementById('opacityValue').textContent = `${opacity}%`;
+    updateOffsetDisplay('nameOffsetXValue', state.nameOffsetX || 0);
+    updateOffsetDisplay('nameOffsetYValue', state.nameOffsetY || 0);
+    updateOffsetDisplay('companyOffsetXValue', state.companyOffsetX || 0);
+    updateOffsetDisplay('companyOffsetYValue', state.companyOffsetY || 0);
+    updateOffsetDisplay('positionOffsetXValue', state.positionOffsetX || 0);
+    updateOffsetDisplay('positionOffsetYValue', state.positionOffsetY || 0);
+
+    document.getElementById('nameOffsetXInput').value = state.nameOffsetX || 0;
+    document.getElementById('nameOffsetYInput').value = state.nameOffsetY || 0;
+    document.getElementById('companyOffsetXInput').value = state.companyOffsetX || 0;
+    document.getElementById('companyOffsetYInput').value = state.companyOffsetY || 0;
+    document.getElementById('positionOffsetXInput').value = state.positionOffsetX || 0;
+    document.getElementById('positionOffsetYInput').value = state.positionOffsetY || 0;
+
+    updateCharCount((state.name || '').length);
+}
+
 function loadPreferredSettings() {
     try {
         const saved = localStorage.getItem('nameplateSettings');
@@ -673,47 +711,11 @@ function loadPreferredSettings() {
             const settings = JSON.parse(saved);
             window.nameplateState = settings.state;
 
-            // 恢復表單值
-            document.getElementById('nameInput').value = settings.state.name || '';
-            document.getElementById('companyInput').value = settings.state.company || '';
-            document.getElementById('positionInput').value = settings.state.position || '';
-            document.getElementById('bgColorInput').value = settings.state.bgColor;
-            document.getElementById('textColorInput').value = settings.state.textColor;
-            document.getElementById('fontSize').value = settings.state.fontSize;
-            document.getElementById('bgOpacity').value = settings.opacity || 100;
-            document.getElementById('textShadow').checked = settings.state.textShadow;
-            
-            // 恢復位置設定
-            document.getElementById('nameOffsetX').value = settings.state.nameOffsetX || 0;
-            document.getElementById('nameOffsetY').value = settings.state.nameOffsetY || 0;
-            document.getElementById('companyOffsetX').value = settings.state.companyOffsetX || 0;
-            document.getElementById('companyOffsetY').value = settings.state.companyOffsetY || 0;
-            document.getElementById('positionOffsetX').value = settings.state.positionOffsetX || 0;
-            document.getElementById('positionOffsetY').value = settings.state.positionOffsetY || 0;
-
-            // 更新顯示值
-            document.getElementById('colorValue').textContent = settings.state.bgColor;
-            document.getElementById('textColorValue').textContent = settings.state.textColor;
-            document.getElementById('fontSizeValue').textContent = `${settings.state.fontSize}px`;
-            document.getElementById('opacityValue').textContent = `${settings.opacity || 100}%`;
-            updateOffsetDisplay('nameOffsetXValue', settings.state.nameOffsetX || 0);
-            updateOffsetDisplay('nameOffsetYValue', settings.state.nameOffsetY || 0);
-            updateOffsetDisplay('companyOffsetXValue', settings.state.companyOffsetX || 0);
-            updateOffsetDisplay('companyOffsetYValue', settings.state.companyOffsetY || 0);
-            updateOffsetDisplay('positionOffsetXValue', settings.state.positionOffsetX || 0);
-            updateOffsetDisplay('positionOffsetYValue', settings.state.positionOffsetY || 0);
-            
-            // 更新number input值
-            document.getElementById('nameOffsetXInput').value = settings.state.nameOffsetX || 0;
-            document.getElementById('nameOffsetYInput').value = settings.state.nameOffsetY || 0;
-            document.getElementById('companyOffsetXInput').value = settings.state.companyOffsetX || 0;
-            document.getElementById('companyOffsetYInput').value = settings.state.companyOffsetY || 0;
-            document.getElementById('positionOffsetXInput').value = settings.state.positionOffsetX || 0;
-            document.getElementById('positionOffsetYInput').value = settings.state.positionOffsetY || 0;
-            
-            updateCharCount(settings.state.name.length);
+            syncControlsFromState(settings.state, settings.opacity || 100);
 
             triggerRender();
+        } else {
+            syncControlsFromState(window.nameplateState, document.getElementById('bgOpacity').value || 100);
         }
     } catch (err) {
         console.error('加載設置失敗:', err);

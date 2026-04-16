@@ -198,7 +198,7 @@ input[type="text"]::placeholder {
     align-self: flex-end;
 }
 
-/* ========== 颜色选择器 ========== */
+/* ========== 顏色選擇器 ========== */
 .color-selector {
     display: flex;
     align-items: center;
@@ -244,7 +244,7 @@ input[type="color"] {
     background-color: transparent;
 }
 
-/* ========== 滑块控制 ========== */
+/* ========== 滑塊控制 ========== */
 .opacity-control,
 .slider-control {
     display: flex;
@@ -299,7 +299,7 @@ input[type="range"]:hover::-moz-range-thumb {
     font-weight: 600;
 }
 
-/* ========== 复选框 ========== */
+/* ========== 複選框 ========== */
 input[type="checkbox"] {
     width: 18px;
     height: 18px;
@@ -459,7 +459,7 @@ input[type="checkbox"] {
     width: 100%;
 }
 
-/* ========== 预览面板 ========== */
+/* ========== 預覽面板 ========== */
 .preview-panel {
     display: flex;
     flex-direction: column;
@@ -587,7 +587,7 @@ input[type="checkbox"] {
     width: 100%;
 }
 
-/* ========== 加载动画 ========== */
+/* ========== 加載動畫 ========== */
 .loading-overlay {
     position: fixed;
     top: 0;
