@@ -69,12 +69,18 @@ function attachEventListeners() {
     document.getElementById('positionXCenterBtn').addEventListener('click', () => handleCenterPosition('positionOffsetX'));
     document.getElementById('positionYCenterBtn').addEventListener('click', () => handleCenterPosition('positionOffsetY'));
     
-    // Canvas 拖曳事件
+    // Canvas 拖曳事件 - 滑鼠
     const canvas = document.getElementById('nameplate');
     canvas.addEventListener('mousedown', handleCanvasMouseDown);
     canvas.addEventListener('mousemove', handleCanvasMouseMove);
     canvas.addEventListener('mouseup', handleCanvasMouseUp);
     canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+
+    // Canvas 拖曳事件 - 觸摸（手機）
+    canvas.addEventListener('touchstart', handleCanvasTouchStart);
+    canvas.addEventListener('touchmove', handleCanvasTouchMove);
+    canvas.addEventListener('touchend', handleCanvasTouchEnd);
+    canvas.addEventListener('touchcancel', handleCanvasTouchEnd);
 
     // 操作按鈕
     document.getElementById('downloadBtn').addEventListener('click', handleDownload);
@@ -380,6 +386,85 @@ function handleCanvasMouseLeave(e) {
         saveSettings();
     }
     e.target.style.cursor = 'default';
+}
+
+// ========== Canvas 觸摸拖曳處理（手機） ==========
+function handleCanvasTouchStart(e) {
+    const canvas = e.target;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // 縮放係數
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const scaledX = x * scaleX;
+    const scaledY = y * scaleY;
+
+    const textType = window.renderer.getTextAtPoint(scaledX, scaledY);
+    
+    if (textType) {
+        dragState.isDragging = true;
+        dragState.selectedText = textType;
+        dragState.startX = x;
+        dragState.startY = y;
+        dragState.startOffsetX = window.nameplateState[`${textType}OffsetX`] || 0;
+        dragState.startOffsetY = window.nameplateState[`${textType}OffsetY`] || 0;
+        
+        e.preventDefault(); // 防止頁面滾動
+        showNotification(`拖曳${getTextLabel(textType)}`, 'info');
+    }
+}
+
+function handleCanvasTouchMove(e) {
+    if (!dragState.isDragging || !dragState.selectedText) {
+        return;
+    }
+
+    const canvas = e.target;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // 縮放係數
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // 計算拖曳的距離
+    const deltaX = (x - dragState.startX) * scaleX;
+    const deltaY = (y - dragState.startY) * scaleY;
+
+    // 更新狀態
+    const newOffsetX = Math.max(-450, Math.min(450, dragState.startOffsetX + deltaX));
+    const newOffsetY = Math.max(-200, Math.min(200, dragState.startOffsetY + deltaY));
+
+    window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
+    window.nameplateState[`${dragState.selectedText}OffsetY`] = newOffsetY;
+
+    // 更新滑塊
+    document.getElementById(`${dragState.selectedText}OffsetX`).value = newOffsetX;
+    document.getElementById(`${dragState.selectedText}OffsetY`).value = newOffsetY;
+    updateOffsetDisplay(`${dragState.selectedText}OffsetXValue`, newOffsetX);
+    updateOffsetDisplay(`${dragState.selectedText}OffsetYValue`, newOffsetY);
+    
+    // 更新number input
+    document.getElementById(`${dragState.selectedText}OffsetXInput`).value = newOffsetX;
+    document.getElementById(`${dragState.selectedText}OffsetYInput`).value = newOffsetY;
+
+    triggerRender();
+    
+    e.preventDefault(); // 防止頁面滾動
+}
+
+function handleCanvasTouchEnd(e) {
+    if (dragState.isDragging) {
+        dragState.isDragging = false;
+        dragState.selectedText = null;
+        saveSettings();
+        showNotification('位置已調整', 'success');
+    }
 }
 
 function getTextLabel(type) {

@@ -763,4 +763,13 @@ input[type="checkbox"] {
     .preset-buttons {
         grid-template-columns: 1fr;
     }
+
+    /* 手機版 Dark Mode 按鈕不固定懸浮，隨著頁面滾動 */
+    .dark-mode-toggle {
+        position: static;
+        display: block;
+        width: 100%;
+        margin-bottom: 15px;
+        z-index: 100;
+    }
 }
