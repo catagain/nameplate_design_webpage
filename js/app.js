@@ -274,7 +274,7 @@ function handleCanvasMouseMove(e) {
         const deltaY = (y - dragState.startY) * scaleY;
 
         // 更新狀態
-        const newOffsetX = Math.max(-100, Math.min(100, dragState.startOffsetX + deltaX));
+        const newOffsetX = Math.max(-450, Math.min(450, dragState.startOffsetX + deltaX));
         const newOffsetY = Math.max(-100, Math.min(100, dragState.startOffsetY + deltaY));
 
         window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
