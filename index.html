@@ -137,16 +137,44 @@
                     <h2>文字樣式</h2>
                     
                     <div class="form-group">
-                        <label for="fontSize">文字大小</label>
+                        <label for="nameFontSize">姓名文字大小</label>
                         <div class="slider-control">
                             <input 
                                 type="range" 
-                                id="fontSize" 
+                                id="nameFontSize" 
                                 min="24" 
-                                max="72" 
+                                max="120" 
                                 value="48"
                             >
-                            <span id="fontSizeValue">48px</span>
+                            <span id="nameFontSizeValue">48px</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="companyFontSize">公司/部門文字大小</label>
+                        <div class="slider-control">
+                            <input 
+                                type="range" 
+                                id="companyFontSize" 
+                                min="16" 
+                                max="100" 
+                                value="24"
+                            >
+                            <span id="companyFontSizeValue">24px</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="positionFontSize">職稱文字大小</label>
+                        <div class="slider-control">
+                            <input 
+                                type="range" 
+                                id="positionFontSize" 
+                                min="16" 
+                                max="100" 
+                                value="24"
+                            >
+                            <span id="positionFontSizeValue">24px</span>
                         </div>
                     </div>
 
@@ -334,7 +362,120 @@
                     </div>
 
                     <div class="form-group hint">
-                        <p>💡 可拖曳 Canvas 中的文字直接調整位置</p>
+                        <p>💡 可拖曳 Canvas 中的文字與 QRCode 直接調整位置</p>
+                    </div>
+                </section>
+
+                <section class="edit-section">
+                    <h2>QRCode</h2>
+
+                    <div class="form-group">
+                        <label>上傳 QRCode 圖片</label>
+                        <input
+                            type="file"
+                            id="qrImageInput"
+                            accept="image/*"
+                            class="file-input"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="qrUrlInput">網址轉 QRCode</label>
+                        <div class="custom-ratio-group">
+                            <input
+                                type="url"
+                                id="qrUrlInput"
+                                placeholder="https://example.com"
+                            >
+                            <button id="generateQrBtn" class="btn btn-secondary">產生</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>QRCode 預覽</label>
+                        <div class="image-preview" id="qrPreview">
+                            <span>未設定 QRCode</span>
+                        </div>
+                        <button id="clearQrBtn" class="btn btn-secondary" style="display: none; margin-top: 8px;">
+                            清除 QRCode
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="qrSize">QRCode 大小</label>
+                        <div class="slider-control">
+                            <input
+                                type="range"
+                                id="qrSize"
+                                min="40"
+                                max="260"
+                                value="100"
+                            >
+                            <span id="qrSizeValue">100px</span>
+                        </div>
+                    </div>
+
+                    <div class="text-position-group">
+                        <h3>QRCode 位置</h3>
+                        <div class="form-group">
+                            <label for="qrcodeOffsetX">橫向偏移</label>
+                            <div class="position-input-group">
+                                <div class="slider-control">
+                                    <input
+                                        type="range"
+                                        id="qrcodeOffsetX"
+                                        min="-450"
+                                        max="450"
+                                        value="320"
+                                    >
+                                    <span id="qrcodeOffsetXValue">320px</span>
+                                </div>
+                                <input
+                                    type="number"
+                                    id="qrcodeOffsetXInput"
+                                    min="-450"
+                                    max="450"
+                                    value="320"
+                                    class="offset-number-input"
+                                >
+                                <button class="btn-center" id="qrcodeXCenterBtn" title="置中">置中</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="qrcodeOffsetY">縱向偏移</label>
+                            <div class="position-input-group">
+                                <div class="slider-control">
+                                    <input
+                                        type="range"
+                                        id="qrcodeOffsetY"
+                                        min="-200"
+                                        max="200"
+                                        value="0"
+                                    >
+                                    <span id="qrcodeOffsetYValue">0px</span>
+                                </div>
+                                <input
+                                    type="number"
+                                    id="qrcodeOffsetYInput"
+                                    min="-200"
+                                    max="200"
+                                    value="0"
+                                    class="offset-number-input"
+                                >
+                                <button class="btn-center" id="qrcodeYCenterBtn" title="置中">置中</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 快速預設 -->
+                <section class="edit-section presets presets-in-editor">
+                    <h3>快速預設</h3>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-preset="corporate">企業風格</button>
+                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
+                        <button class="preset-btn" data-preset="modern">現代簡約</button>
+                        <button class="preset-btn" data-preset="tech">科技感</button>
                     </div>
                 </section>
 
@@ -363,17 +504,6 @@
                         <p class="hint">💡 實時預覽 - 編輯內容時自動更新</p>
                     </div>
                 </div>
-
-                <!-- 快速預設 -->
-                <section class="presets">
-                    <h3>快速預設</h3>
-                    <div class="preset-buttons">
-                        <button class="preset-btn" data-preset="corporate">企業風格</button>
-                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
-                        <button class="preset-btn" data-preset="modern">現代簡約</button>
-                        <button class="preset-btn" data-preset="tech">科技感</button>
-                    </div>
-                </section>
             </main>
         </div>
 
@@ -416,6 +546,7 @@
     <!-- 成功提示 -->
     <div id="notification" class="notification" style="display: none;"></div>
 
+    <script src="js/vendor/qrcode.min.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/app.js"></script>
 </body>

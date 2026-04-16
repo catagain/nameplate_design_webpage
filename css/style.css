@@ -122,6 +122,11 @@ header h1 {
 
     .preview-panel {
         order: -1;
+        position: static;
+    }
+
+    .edit-panel {
+        position: static;
     }
 }
 
@@ -403,6 +408,15 @@ input[type="checkbox"] {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.custom-ratio-group input[type="url"] {
+    flex: 1;
+}
+
+.custom-ratio-group .btn {
+    white-space: nowrap;
+    padding: 10px 14px;
 }
 
 .ratio-number-input {
@@ -831,6 +845,10 @@ input[type="checkbox"] {
 
     .preset-buttons {
         grid-template-columns: 1fr;
+    }
+
+    .presets-in-editor {
+        order: -1;
     }
 
     /* 手機版 Dark Mode 按鈕維持在右上角 */
