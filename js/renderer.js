@@ -69,6 +69,73 @@ class NameplateRenderer {
     }
 
     /**
+     * 取得文字位置信息
+     */
+    getTextPositions(state) {
+        const { name, company, position, fontSize } = state;
+        const { width, height } = this.canvas;
+        
+        const nameOffsetX = state.nameOffsetX || 0;
+        const nameOffsetY = state.nameOffsetY || 0;
+        const companyOffsetX = state.companyOffsetX || 0;
+        const companyOffsetY = state.companyOffsetY || 0;
+        const positionOffsetX = state.positionOffsetX || 0;
+        const positionOffsetY = state.positionOffsetY || 0;
+
+        const totalLines = (company ? 1 : 0) + (position ? 1 : 0) + 1;
+        const lineHeight = fontSize * 1.4;
+        const totalHeight = lineHeight * totalLines;
+        const baseStartY = (height - totalHeight) / 2 + fontSize / 2;
+
+        const positions = [];
+        let currentY = baseStartY;
+
+        if (company) {
+            positions.push({
+                type: 'company',
+                text: company,
+                x: width / 2 + companyOffsetX,
+                y: currentY + companyOffsetY,
+                baseX: width / 2,
+                baseY: currentY,
+                fontSize: fontSize * 0.5,
+                width: 100,
+                height: fontSize * 0.5
+            });
+            currentY += lineHeight;
+        }
+
+        positions.push({
+            type: 'name',
+            text: name,
+            x: width / 2 + nameOffsetX,
+            y: currentY + nameOffsetY,
+            baseX: width / 2,
+            baseY: currentY,
+            fontSize: fontSize,
+            width: 150,
+            height: fontSize
+        });
+        currentY += lineHeight;
+
+        if (position) {
+            positions.push({
+                type: 'position',
+                text: position,
+                x: width / 2 + positionOffsetX,
+                y: currentY + positionOffsetY,
+                baseX: width / 2,
+                baseY: currentY,
+                fontSize: fontSize * 0.5,
+                width: 100,
+                height: fontSize * 0.5
+            });
+        }
+
+        return positions;
+    }
+
+    /**
      * 繪製背景顏色
      */
     drawBackground(color) {
@@ -111,44 +178,50 @@ class NameplateRenderer {
     }
 
     /**
+     * 檢查點是否在文字元素內
+     */
+    getTextAtPoint(x, y) {
+        const positions = this.getTextPositions(window.nameplateState);
+        
+        for (let pos of positions) {
+            // 設定正確的字體以計算文字寬度
+            this.ctx.font = `bold ${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            if (pos.type === 'company' || pos.type === 'position') {
+                this.ctx.font = `${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            }
+            
+            const textWidth = this.ctx.measureText(pos.text).width;
+            const left = pos.x - textWidth / 2;
+            const right = pos.x + textWidth / 2;
+            const top = pos.y - pos.height / 2;
+            const bottom = pos.y + pos.height / 2;
+
+            if (x >= left && x <= right && y >= top && y <= bottom) {
+                return pos.type;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
      * 繪製文字內容
      */
     drawText(state) {
         const { name, company, position, fontSize, textColor, textShadow } = state;
-        const { width, height } = this.canvas;
+        const positions = this.getTextPositions(state);
 
         this.ctx.fillStyle = textColor;
-        this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
-        // 計算垂直偏移
-        const totalLines = (company ? 1 : 0) + (position ? 1 : 0) + 1;
-        const lineHeight = fontSize * 1.4;
-        const totalHeight = lineHeight * totalLines;
-        const startY = (height - totalHeight) / 2 + fontSize / 2;
-
-        let currentY = startY;
-
-        // 繪製 "公司/部門"
-        if (company) {
-            const smallFontSize = fontSize * 0.5;
-            this.ctx.font = `${smallFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
-            this.drawTextWithShadow(company, width / 2, currentY, textShadow, textColor);
-            currentY += lineHeight;
-        }
-
-        // 繪製 "姓名"
-        this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
-        this.drawTextWithShadow(name, width / 2, currentY, textShadow, textColor);
-        currentY += lineHeight;
-
-        // 繪製 "職位" 
-        if (position) {
-            const smallFontSize = fontSize * 0.5;
-            this.ctx.font = `${smallFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
-            this.drawTextWithShadow(position, width / 2, currentY, textShadow, textColor);
-        }
+        positions.forEach(pos => {
+            this.ctx.font = `bold ${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            if (pos.type === 'company' || pos.type === 'position') {
+                this.ctx.font = `${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            }
+            this.drawTextWithShadow(pos.text, pos.x, pos.y, textShadow, textColor);
+        });
     }
 
     /**
@@ -208,7 +281,14 @@ window.nameplateState = {
     bgColor: '#1e3a5f',
     fontSize: 48,
     textColor: '#ffffff',
-    textShadow: false
+    textShadow: false,
+    // 分別的位置偏移
+    nameOffsetX: 0,
+    nameOffsetY: 0,
+    companyOffsetX: 0,
+    companyOffsetY: 0,
+    positionOffsetX: 0,
+    positionOffsetY: 0
 };
 
 /**

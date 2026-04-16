@@ -352,6 +352,49 @@ input[type="checkbox"] {
     box-shadow: var(--shadow-lg);
 }
 
+/* 位置控制組 */
+.position-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.text-position-group {
+    background-color: var(--bg-primary);
+    padding: 12px;
+    border-radius: 6px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.text-position-group h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.text-position-group .form-group {
+    margin-bottom: 10px;
+}
+
+.text-position-group .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group.hint {
+    background-color: var(--bg-light);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.form-group.hint p {
+    margin: 0;
+    color: var(--secondary-color);
+}
+
 .action-section {
     display: flex;
     flex-direction: column;

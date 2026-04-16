@@ -2,6 +2,16 @@
  * 會議名牌編輯器
  */
 
+// ========== 拖曳狀態 ==========
+let dragState = {
+    isDragging: false,
+    selectedText: null,
+    startX: 0,
+    startY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0
+};
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
     initRenderer();
@@ -27,6 +37,25 @@ function attachEventListeners() {
     document.getElementById('fontSize').addEventListener('input', handleFontSizeChange);
     document.getElementById('textColorInput').addEventListener('change', handleTextColorChange);
     document.getElementById('textShadow').addEventListener('change', handleTextShadowChange);
+
+    // 文字位置 - 姓名
+    document.getElementById('nameOffsetX').addEventListener('input', handleNameOffsetXChange);
+    document.getElementById('nameOffsetY').addEventListener('input', handleNameOffsetYChange);
+    
+    // 文字位置 - 公司
+    document.getElementById('companyOffsetX').addEventListener('input', handleCompanyOffsetXChange);
+    document.getElementById('companyOffsetY').addEventListener('input', handleCompanyOffsetYChange);
+    
+    // 文字位置 - 職位
+    document.getElementById('positionOffsetX').addEventListener('input', handlePositionOffsetXChange);
+    document.getElementById('positionOffsetY').addEventListener('input', handlePositionOffsetYChange);
+    
+    // Canvas 拖曳事件
+    const canvas = document.getElementById('nameplate');
+    canvas.addEventListener('mousedown', handleCanvasMouseDown);
+    canvas.addEventListener('mousemove', handleCanvasMouseMove);
+    canvas.addEventListener('mouseup', handleCanvasMouseUp);
+    canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
 
     // 操作按鈕
     document.getElementById('downloadBtn').addEventListener('click', handleDownload);
@@ -148,6 +177,151 @@ function handleTextShadowChange(e) {
     saveSettings();
 }
 
+// ========== 文字位置處理 - 姓名 ==========
+function handleNameOffsetXChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.nameOffsetX = value;
+    document.getElementById('nameOffsetXValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function handleNameOffsetYChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.nameOffsetY = value;
+    document.getElementById('nameOffsetYValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+// ========== 文字位置處理 - 公司 ==========
+function handleCompanyOffsetXChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.companyOffsetX = value;
+    document.getElementById('companyOffsetXValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function handleCompanyOffsetYChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.companyOffsetY = value;
+    document.getElementById('companyOffsetYValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+// ========== 文字位置處理 - 職位 ==========
+function handlePositionOffsetXChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.positionOffsetX = value;
+    document.getElementById('positionOffsetXValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function handlePositionOffsetYChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.positionOffsetY = value;
+    document.getElementById('positionOffsetYValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+// ========== Canvas 拖曳處理 ==========
+function handleCanvasMouseDown(e) {
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 縮放係數（Canvas 實際大小與顯示大小的比例）
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const scaledX = x * scaleX;
+    const scaledY = y * scaleY;
+
+    const textType = window.renderer.getTextAtPoint(scaledX, scaledY);
+    
+    if (textType) {
+        dragState.isDragging = true;
+        dragState.selectedText = textType;
+        dragState.startX = x;
+        dragState.startY = y;
+        dragState.startOffsetX = window.nameplateState[`${textType}OffsetX`] || 0;
+        dragState.startOffsetY = window.nameplateState[`${textType}OffsetY`] || 0;
+        
+        canvas.style.cursor = 'grabbing';
+        showNotification(`拖曳${getTextLabel(textType)}`, 'info');
+    }
+}
+
+function handleCanvasMouseMove(e) {
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 縮放係數
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const scaledX = x * scaleX;
+    const scaledY = y * scaleY;
+
+    if (dragState.isDragging && dragState.selectedText) {
+        // 計算拖曳的距離（相對於縮放）
+        const deltaX = (x - dragState.startX) * scaleX;
+        const deltaY = (y - dragState.startY) * scaleY;
+
+        // 更新狀態
+        const newOffsetX = Math.max(-100, Math.min(100, dragState.startOffsetX + deltaX));
+        const newOffsetY = Math.max(-100, Math.min(100, dragState.startOffsetY + deltaY));
+
+        window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
+        window.nameplateState[`${dragState.selectedText}OffsetY`] = newOffsetY;
+
+        // 更新滑塊
+        document.getElementById(`${dragState.selectedText}OffsetX`).value = newOffsetX;
+        document.getElementById(`${dragState.selectedText}OffsetY`).value = newOffsetY;
+        document.getElementById(`${dragState.selectedText}OffsetXValue`).textContent = `${newOffsetX}px`;
+        document.getElementById(`${dragState.selectedText}OffsetYValue`).textContent = `${newOffsetY}px`;
+
+        triggerRender();
+    } else {
+        // 檢查是否懸停在文字上
+        const textType = window.renderer.getTextAtPoint(scaledX, scaledY);
+        canvas.style.cursor = textType ? 'grab' : 'default';
+    }
+}
+
+function handleCanvasMouseUp(e) {
+    if (dragState.isDragging) {
+        dragState.isDragging = false;
+        dragState.selectedText = null;
+        saveSettings();
+        showNotification('位置已調整', 'success');
+    }
+    e.target.style.cursor = 'default';
+}
+
+function handleCanvasMouseLeave(e) {
+    if (dragState.isDragging) {
+        dragState.isDragging = false;
+        dragState.selectedText = null;
+        saveSettings();
+    }
+    e.target.style.cursor = 'default';
+}
+
+function getTextLabel(type) {
+    const labels = {
+        name: '姓名',
+        company: '公司',
+        position: '職位'
+    };
+    return labels[type] || type;
+}
+
 // ========== 操作處理 ==========
 function handleDownload() {
     const name = window.nameplateState.name || 'nameplate';
@@ -174,6 +348,12 @@ function handleReset() {
         document.getElementById('fontSize').value = 48;
         document.getElementById('bgOpacity').value = 100;
         document.getElementById('textShadow').checked = false;
+        document.getElementById('nameOffsetX').value = 0;
+        document.getElementById('nameOffsetY').value = 0;
+        document.getElementById('companyOffsetX').value = 0;
+        document.getElementById('companyOffsetY').value = 0;
+        document.getElementById('positionOffsetX').value = 0;
+        document.getElementById('positionOffsetY').value = 0;
 
         // 重置狀態
         window.nameplateState = {
@@ -183,7 +363,13 @@ function handleReset() {
             bgColor: '#ffffff',
             fontSize: 48,
             textColor: '#000000',
-            textShadow: false
+            textShadow: false,
+            nameOffsetX: 0,
+            nameOffsetY: 0,
+            companyOffsetX: 0,
+            companyOffsetY: 0,
+            positionOffsetX: 0,
+            positionOffsetY: 0
         };
 
         // 清除圖片
@@ -194,6 +380,12 @@ function handleReset() {
         document.getElementById('textColorValue').textContent = '#000000';
         document.getElementById('fontSizeValue').textContent = '48px';
         document.getElementById('opacityValue').textContent = '100%';
+        document.getElementById('nameOffsetXValue').textContent = '0px';
+        document.getElementById('nameOffsetYValue').textContent = '0px';
+        document.getElementById('companyOffsetXValue').textContent = '0px';
+        document.getElementById('companyOffsetYValue').textContent = '0px';
+        document.getElementById('positionOffsetXValue').textContent = '0px';
+        document.getElementById('positionOffsetYValue').textContent = '0px';
         updateCharCount(0);
 
         triggerRender();
@@ -327,12 +519,27 @@ function loadPreferredSettings() {
             document.getElementById('fontSize').value = settings.state.fontSize;
             document.getElementById('bgOpacity').value = settings.opacity || 100;
             document.getElementById('textShadow').checked = settings.state.textShadow;
+            
+            // 恢復位置設定
+            document.getElementById('nameOffsetX').value = settings.state.nameOffsetX || 0;
+            document.getElementById('nameOffsetY').value = settings.state.nameOffsetY || 0;
+            document.getElementById('companyOffsetX').value = settings.state.companyOffsetX || 0;
+            document.getElementById('companyOffsetY').value = settings.state.companyOffsetY || 0;
+            document.getElementById('positionOffsetX').value = settings.state.positionOffsetX || 0;
+            document.getElementById('positionOffsetY').value = settings.state.positionOffsetY || 0;
 
             // 更新顯示值
             document.getElementById('colorValue').textContent = settings.state.bgColor;
             document.getElementById('textColorValue').textContent = settings.state.textColor;
             document.getElementById('fontSizeValue').textContent = `${settings.state.fontSize}px`;
             document.getElementById('opacityValue').textContent = `${settings.opacity || 100}%`;
+            document.getElementById('nameOffsetXValue').textContent = `${settings.state.nameOffsetX || 0}px`;
+            document.getElementById('nameOffsetYValue').textContent = `${settings.state.nameOffsetY || 0}px`;
+            document.getElementById('companyOffsetXValue').textContent = `${settings.state.companyOffsetX || 0}px`;
+            document.getElementById('companyOffsetYValue').textContent = `${settings.state.companyOffsetY || 0}px`;
+            document.getElementById('positionOffsetXValue').textContent = `${settings.state.positionOffsetX || 0}px`;
+            document.getElementById('positionOffsetYValue').textContent = `${settings.state.positionOffsetY || 0}px`;
+            
             updateCharCount(settings.state.name.length);
 
             triggerRender();
