@@ -144,13 +144,13 @@ document.getElementById('apiSection').style.display = 'block';
 - ✅ 本地儲存
 - ✅ 快速預設
 
-## 許可證
+## LICENSE
 
 MIT License - 自由使用和修改
 
 ## 製作者
 
-Made with ❤️ by **貓又**
+Made by **貓又**
 
 ## 支持和反饋
 
