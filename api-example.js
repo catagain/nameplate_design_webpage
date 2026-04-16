@@ -125,7 +125,7 @@ app.post('/api/nameplate/upload', async (req, res) => {
 });
 
 /**
- * 获取已上传的名牌列表
+ * 獲取已上傳的名牌列表
  * GET /api/nameplate/list
  */
 app.get('/api/nameplate/list', (req, res) => {
@@ -143,16 +143,16 @@ app.get('/api/nameplate/list', (req, res) => {
             data: nameplates
         });
     } catch (error) {
-        console.error('获取列表失败:', error);
+        console.error('獲取列表失敗:', error);
         res.status(500).json({
             success: false,
-            error: '获取列表失败'
+            error: '獲取列表失敗'
         });
     }
 });
 
 /**
- * 获取单个名牌
+ * 獲取單個名牌
  * GET /api/nameplate/:id
  */
 app.get('/api/nameplate/:id', (req, res) => {
@@ -181,10 +181,10 @@ app.get('/api/nameplate/:id', (req, res) => {
             }
         });
     } catch (error) {
-        console.error('获取名牌失败:', error);
+        console.error('獲取名牌失敗:', error);
         res.status(500).json({
             success: false,
-            error: '获取名牌失败'
+            error: '獲取名牌失敗'
         });
     }
 });
@@ -214,48 +214,48 @@ app.delete('/api/nameplate/:id', (req, res) => {
             message: '删除成功'
         });
     } catch (error) {
-        console.error('删除失败:', error);
+        console.error('删除失敗:', error);
         res.status(500).json({
             success: false,
-            error: '删除失败'
+            error: '删除失敗'
         });
     }
 });
 
 /**
- * 提供静态文件访问
+ * 靜態文件讀取
  */
 app.use('/uploads', express.static(uploadDir));
 
 /**
- * 错误处理
+ * 錯誤訊息處理
  */
 app.use((err, req, res, next) => {
-    console.error('错误:', err);
+    console.error('錯誤:', err);
     res.status(500).json({
         success: false,
-        error: '服务器错误',
+        error: '伺服器錯誤',
         message: err.message
     });
 });
 
 /**
- * 启动服务器
+ * 啟動伺服器
  */
 app.listen(PORT, () => {
     console.log(`
 ╔════════════════════════════════════════╗
-║  会议名牌编辑器 - API 服务              ║
+║  會議名牌編輯器 - API 服務               ║
 ╠════════════════════════════════════════╣
-║  服务器运行在: http://localhost:${PORT}      ║
-║  上传目录: ${uploadDir}                     ║
+║  伺服器運行在: http://localhost:${PORT} ║
+║  上傳目錄: ${uploadDir}                 ║
 ║                                        ║
-║  可用端点:                              ║
-║  • POST   /api/nameplate/upload       ║
-║  • GET    /api/nameplate/list         ║
-║  • GET    /api/nameplate/:id          ║
-║  • DELETE /api/nameplate/:id          ║
-║  • GET    /health                     ║
+║  可用端點:                              ║
+║  • POST   /api/nameplate/upload        ║
+║  • GET    /api/nameplate/list          ║
+║  • GET    /api/nameplate/:id           ║
+║  • DELETE /api/nameplate/:id           ║
+║  • GET    /health                      ║
 ╚════════════════════════════════════════╝
     `);
 });

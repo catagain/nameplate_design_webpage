@@ -14,6 +14,9 @@ let dragState = {
 
 // 背景圖片 DataURL（用於下次訪問還原）
 let bgImageDataUrl = null;
+// QRCode DataURL（用於下次訪問還原）
+let qrCodeDataUrl = null;
+let qrCodeLibLoadingPromise = null;
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,7 +24,71 @@ document.addEventListener('DOMContentLoaded', () => {
     attachEventListeners();
     loadPreferredSettings();
     initDarkMode();
+    // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
+    ensureQrCodeLibraryLoaded();
 });
+
+async function ensureQrCodeLibraryLoaded() {
+    if (typeof QRCode !== 'undefined') {
+        return true;
+    }
+
+    if (qrCodeLibLoadingPromise) {
+        return qrCodeLibLoadingPromise;
+    }
+
+    qrCodeLibLoadingPromise = (async () => {
+        const localLibPath = 'js/vendor/qrcode.min.js';
+
+        try {
+            await loadScript(localLibPath);
+            if (typeof QRCode !== 'undefined') {
+                return true;
+            }
+        } catch (err) {
+            console.warn('QRCode 本地函式庫載入失敗:', localLibPath, err);
+        }
+
+        return false;
+    })();
+
+    const loaded = await qrCodeLibLoadingPromise;
+    qrCodeLibLoadingPromise = null;
+    return loaded;
+}
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+            if (typeof QRCode !== 'undefined') {
+                resolve();
+                return;
+            }
+            // 若 script 已存在但 QRCode 仍不可用，通常代表先前載入已失敗；直接改試下一個 CDN
+            reject(new Error(`Script 已存在但 QRCode 未就緒: ${src}`));
+            return;
+        }
+
+        const script = document.createElement('script');
+        const timeoutId = setTimeout(() => {
+            script.remove();
+            reject(new Error(`Script 載入逾時: ${src}`));
+        }, 7000);
+
+        script.src = src;
+        script.async = true;
+        script.onload = () => {
+            clearTimeout(timeoutId);
+            resolve();
+        };
+        script.onerror = () => {
+            clearTimeout(timeoutId);
+            reject(new Error(`Script 載入失敗: ${src}`));
+        };
+        document.head.appendChild(script);
+    });
+}
 
 // ========== 事件監聽 ==========
 function attachEventListeners() {
@@ -36,8 +103,22 @@ function attachEventListeners() {
     document.getElementById('clearImageBtn').addEventListener('click', handleClearImage);
     document.getElementById('bgOpacity').addEventListener('input', handleOpacityChange);
 
+    // QRCode 設置
+    document.getElementById('qrImageInput').addEventListener('change', handleQrImageUpload);
+    document.getElementById('generateQrBtn').addEventListener('click', handleGenerateQrCode);
+    document.getElementById('clearQrBtn').addEventListener('click', handleClearQrCode);
+    document.getElementById('qrSize').addEventListener('input', handleQrSizeChange);
+    document.getElementById('qrcodeOffsetX').addEventListener('input', handleQrcodeOffsetXChange);
+    document.getElementById('qrcodeOffsetY').addEventListener('input', handleQrcodeOffsetYChange);
+    document.getElementById('qrcodeOffsetXInput').addEventListener('change', (e) => handleNumberInputChange('qrcodeOffsetX', e.target.value));
+    document.getElementById('qrcodeOffsetYInput').addEventListener('change', (e) => handleNumberInputChange('qrcodeOffsetY', e.target.value));
+    document.getElementById('qrcodeXCenterBtn').addEventListener('click', () => handleCenterPosition('qrcodeOffsetX'));
+    document.getElementById('qrcodeYCenterBtn').addEventListener('click', () => handleCenterPosition('qrcodeOffsetY'));
+
     // 文字樣式
-    document.getElementById('fontSize').addEventListener('input', handleFontSizeChange);
+    document.getElementById('nameFontSize').addEventListener('input', handleNameFontSizeChange);
+    document.getElementById('companyFontSize').addEventListener('input', handleCompanyFontSizeChange);
+    document.getElementById('positionFontSize').addEventListener('input', handlePositionFontSizeChange);
     document.getElementById('textColorInput').addEventListener('change', handleTextColorChange);
     document.getElementById('textShadow').addEventListener('change', handleTextShadowChange);
 
@@ -213,13 +294,157 @@ function handleOpacityChange(e) {
     saveSettings();
 }
 
-// ========== 文字樣式處理 ==========
-function handleFontSizeChange(e) {
-    const size = parseInt(e.target.value);
-    window.nameplateState.fontSize = size;
-    document.getElementById('fontSizeValue').textContent = `${size}px`;
+function handleQrImageUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification('QRCode 圖片大小不能超過 5MB', 'error');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        qrCodeDataUrl = event.target.result;
+        window.renderer.setQrCodeDataUrl(qrCodeDataUrl);
+        updateQrPreview(qrCodeDataUrl);
+        saveSettings();
+        showNotification('已上傳 QRCode 圖片', 'success');
+    };
+    reader.readAsDataURL(file);
+}
+
+async function handleGenerateQrCode() {
+    const qrUrl = document.getElementById('qrUrlInput').value.trim();
+    if (!qrUrl) {
+        showNotification('請先輸入網址', 'error');
+        return;
+    }
+
+    const generateBtn = document.getElementById('generateQrBtn');
+    const originalBtnText = generateBtn.textContent;
+    generateBtn.disabled = true;
+    generateBtn.textContent = '產生中...';
+
+    try {
+        if (!await ensureQrCodeLibraryLoaded()) {
+            showNotification('QRCode 本地函式庫未載入，請確認 js/vendor/qrcode.min.js 存在', 'error');
+            return;
+        }
+
+        // qrcodejs 使用 DOM 渲染，建立臨時 div → canvas → 取 dataURL
+        const tmpDiv = document.createElement('div');
+        tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:512px;height:512px;';
+        document.body.appendChild(tmpDiv);
+
+        try {
+            new QRCode(tmpDiv, {
+                text: qrUrl,
+                width: 512,
+                height: 512,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            // qrcodejs 在 canvas 或 img 上渲染，等一個 tick 讓 DOM 更新
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const canvas = tmpDiv.querySelector('canvas');
+            const img = tmpDiv.querySelector('img');
+            let url = null;
+
+            if (canvas) {
+                url = canvas.toDataURL('image/png');
+            } else if (img && img.src) {
+                url = img.src;
+            }
+
+            if (!url) {
+                throw new Error('無法取得 QRCode 圖片資料');
+            }
+
+            qrCodeDataUrl = url;
+            window.renderer.setQrCodeDataUrl(qrCodeDataUrl);
+            updateQrPreview(qrCodeDataUrl);
+            saveSettings();
+            showNotification('已由網址產生 QRCode', 'success');
+        } finally {
+            document.body.removeChild(tmpDiv);
+        }
+    } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = originalBtnText;
+    }
+}
+
+function handleClearQrCode() {
+    document.getElementById('qrImageInput').value = '';
+    document.getElementById('qrUrlInput').value = '';
+    qrCodeDataUrl = null;
+    window.renderer.clearQrCode();
+
+    const preview = document.getElementById('qrPreview');
+    preview.innerHTML = '<span>未設定 QRCode</span>';
+    preview.classList.remove('has-image');
+    document.getElementById('clearQrBtn').style.display = 'none';
+
     triggerRender();
     saveSettings();
+}
+
+function handleQrSizeChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.qrSize = value;
+    document.getElementById('qrSizeValue').textContent = `${value}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function handleQrcodeOffsetXChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.qrcodeOffsetX = value;
+    updateOffsetDisplay('qrcodeOffsetXValue', value);
+    document.getElementById('qrcodeOffsetXInput').value = value;
+    triggerRender();
+    saveSettings();
+}
+
+function handleQrcodeOffsetYChange(e) {
+    const value = parseInt(e.target.value);
+    window.nameplateState.qrcodeOffsetY = value;
+    updateOffsetDisplay('qrcodeOffsetYValue', value);
+    document.getElementById('qrcodeOffsetYInput').value = value;
+    triggerRender();
+    saveSettings();
+}
+
+function updateQrPreview(dataUrl) {
+    const preview = document.getElementById('qrPreview');
+    preview.innerHTML = `<img src="${dataUrl}" alt="QRCode 預覽">`;
+    preview.classList.add('has-image');
+    document.getElementById('clearQrBtn').style.display = 'block';
+}
+
+// ========== 文字樣式處理 ==========
+function handleFontSizeChange(stateKey, valueElementId, value) {
+    const size = parseInt(value);
+    window.nameplateState[stateKey] = size;
+    document.getElementById(valueElementId).textContent = `${size}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function handleNameFontSizeChange(e) {
+    handleFontSizeChange('nameFontSize', 'nameFontSizeValue', e.target.value);
+}
+
+function handleCompanyFontSizeChange(e) {
+    handleFontSizeChange('companyFontSize', 'companyFontSizeValue', e.target.value);
+}
+
+function handlePositionFontSizeChange(e) {
+    handleFontSizeChange('positionFontSize', 'positionFontSizeValue', e.target.value);
 }
 
 function handleTextColorChange(e) {
@@ -295,7 +520,10 @@ function handlePositionOffsetYChange(e) {
 
 // ========== Number Input 和 Center Button 處理 ==========
 function handleNumberInputChange(offsetKey, value) {
-    const numValue = Math.max(-450, Math.min(450, parseInt(value) || 0));
+    const slider = document.getElementById(offsetKey);
+    const min = parseInt(slider.min);
+    const max = parseInt(slider.max);
+    const numValue = Math.max(min, Math.min(max, parseInt(value) || 0));
     
     window.nameplateState[offsetKey] = numValue;
     
@@ -497,7 +725,8 @@ function getTextLabel(type) {
     const labels = {
         name: '姓名',
         company: '公司',
-        position: '職位'
+        position: '職位',
+        qrcode: 'QRCode'
     };
     return labels[type] || type;
 }
@@ -525,7 +754,9 @@ function handleReset() {
         document.getElementById('positionInput').value = '職位名稱';
         document.getElementById('bgColorInput').value = '#ffffff';
         document.getElementById('textColorInput').value = '#000000';
-        document.getElementById('fontSize').value = 48;
+        document.getElementById('nameFontSize').value = 48;
+        document.getElementById('companyFontSize').value = 24;
+        document.getElementById('positionFontSize').value = 24;
         document.getElementById('bgOpacity').value = 100;
         document.getElementById('textShadow').checked = false;
         document.getElementById('nameOffsetX').value = 0;
@@ -534,6 +765,13 @@ function handleReset() {
         document.getElementById('companyOffsetY').value = 100;
         document.getElementById('positionOffsetX').value = 0;
         document.getElementById('positionOffsetY').value = -100;
+        document.getElementById('qrcodeOffsetX').value = 320;
+        document.getElementById('qrcodeOffsetY').value = 0;
+        document.getElementById('qrcodeOffsetXInput').value = 320;
+        document.getElementById('qrcodeOffsetYInput').value = 0;
+        document.getElementById('qrSize').value = 100;
+        document.getElementById('qrSizeValue').textContent = '100px';
+        document.getElementById('qrUrlInput').value = '';
 
         // 重置狀態
         window.nameplateState = {
@@ -541,7 +779,9 @@ function handleReset() {
             company: '公司名稱',
             position: '職位名稱',
             bgColor: '#ffffff',
-            fontSize: 48,
+            nameFontSize: 48,
+            companyFontSize: 24,
+            positionFontSize: 24,
             textColor: '#000000',
             textShadow: false,
             nameOffsetX: 0,
@@ -549,7 +789,10 @@ function handleReset() {
             companyOffsetX: 0,
             companyOffsetY: 100,
             positionOffsetX: 0,
-            positionOffsetY: -100
+            positionOffsetY: -100,
+            qrcodeOffsetX: 320,
+            qrcodeOffsetY: 0,
+            qrSize: 100
         };
 
         // 清除圖片
@@ -558,7 +801,9 @@ function handleReset() {
         // 更新UI
         document.getElementById('colorValue').textContent = '#ffffff';
         document.getElementById('textColorValue').textContent = '#000000';
-        document.getElementById('fontSizeValue').textContent = '48px';
+        document.getElementById('nameFontSizeValue').textContent = '48px';
+        document.getElementById('companyFontSizeValue').textContent = '24px';
+        document.getElementById('positionFontSizeValue').textContent = '24px';
         document.getElementById('opacityValue').textContent = '100%';
         updateOffsetDisplay('nameOffsetXValue', 0);
         updateOffsetDisplay('nameOffsetYValue', 0);
@@ -566,6 +811,8 @@ function handleReset() {
         updateOffsetDisplay('companyOffsetYValue', 100);
         updateOffsetDisplay('positionOffsetXValue', 0);
         updateOffsetDisplay('positionOffsetYValue', -100);
+        updateOffsetDisplay('qrcodeOffsetXValue', 320);
+        updateOffsetDisplay('qrcodeOffsetYValue', 0);
         
         // 重置number input
         document.getElementById('nameOffsetXInput').value = 0;
@@ -574,6 +821,11 @@ function handleReset() {
         document.getElementById('companyOffsetYInput').value = 100;
         document.getElementById('positionOffsetXInput').value = 0;
         document.getElementById('positionOffsetYInput').value = -100;
+        document.getElementById('qrcodeOffsetXInput').value = 320;
+        document.getElementById('qrcodeOffsetYInput').value = 0;
+
+        // 清除 QRCode
+        handleClearQrCode();
         
         updateCharCount(0);
 
@@ -592,19 +844,25 @@ function handlePresetClick(e) {
 
     // 應用預設
     window.nameplateState.bgColor = preset.bgColor;
-    window.nameplateState.fontSize = preset.fontSize;
+    window.nameplateState.nameFontSize = preset.nameFontSize;
+    window.nameplateState.companyFontSize = preset.companyFontSize;
+    window.nameplateState.positionFontSize = preset.positionFontSize;
     window.nameplateState.textColor = preset.textColor;
     window.nameplateState.textShadow = preset.textShadow;
 
     // 更新表單
     document.getElementById('bgColorInput').value = preset.bgColor;
-    document.getElementById('fontSize').value = preset.fontSize;
+    document.getElementById('nameFontSize').value = preset.nameFontSize;
+    document.getElementById('companyFontSize').value = preset.companyFontSize;
+    document.getElementById('positionFontSize').value = preset.positionFontSize;
     document.getElementById('textColorInput').value = preset.textColor;
     document.getElementById('textShadow').checked = preset.textShadow;
 
     // 更新顯示值
     document.getElementById('colorValue').textContent = preset.bgColor;
-    document.getElementById('fontSizeValue').textContent = `${preset.fontSize}px`;
+    document.getElementById('nameFontSizeValue').textContent = `${preset.nameFontSize}px`;
+    document.getElementById('companyFontSizeValue').textContent = `${preset.companyFontSize}px`;
+    document.getElementById('positionFontSizeValue').textContent = `${preset.positionFontSize}px`;
     document.getElementById('textColorValue').textContent = preset.textColor;
 
     // 更新按鈕狀態
@@ -707,6 +965,7 @@ function saveSettings() {
             state: window.nameplateState,
             opacity: document.getElementById('bgOpacity').value,
             bgImageDataUrl: bgImageDataUrl,
+            qrCodeDataUrl: qrCodeDataUrl,
             aspectRatio: currentAspectRatio
         };
         localStorage.setItem('nameplateSettings', JSON.stringify(settings));
@@ -715,13 +974,37 @@ function saveSettings() {
     }
 }
 
+function normalizeFontSizes(state) {
+    const legacyBaseSize = parseInt(state.fontSize || 48);
+    if (!state.nameFontSize) {
+        state.nameFontSize = legacyBaseSize;
+    }
+    if (!state.companyFontSize) {
+        state.companyFontSize = Math.round(legacyBaseSize * 0.5);
+    }
+    if (!state.positionFontSize) {
+        state.positionFontSize = Math.round(legacyBaseSize * 0.5);
+    }
+}
+
+function normalizeQrState(state) {
+    if (state.qrSize == null) state.qrSize = 100;
+    if (state.qrcodeOffsetX == null) state.qrcodeOffsetX = 320;
+    if (state.qrcodeOffsetY == null) state.qrcodeOffsetY = 0;
+}
+
 function syncControlsFromState(state, opacity = 100) {
+    normalizeFontSizes(state);
+    normalizeQrState(state);
+
     document.getElementById('nameInput').value = state.name || '';
     document.getElementById('companyInput').value = state.company || '';
     document.getElementById('positionInput').value = state.position || '';
     document.getElementById('bgColorInput').value = state.bgColor;
     document.getElementById('textColorInput').value = state.textColor;
-    document.getElementById('fontSize').value = state.fontSize;
+    document.getElementById('nameFontSize').value = state.nameFontSize;
+    document.getElementById('companyFontSize').value = state.companyFontSize;
+    document.getElementById('positionFontSize').value = state.positionFontSize;
     document.getElementById('bgOpacity').value = opacity;
     document.getElementById('textShadow').checked = state.textShadow;
 
@@ -731,10 +1014,15 @@ function syncControlsFromState(state, opacity = 100) {
     document.getElementById('companyOffsetY').value = state.companyOffsetY || 0;
     document.getElementById('positionOffsetX').value = state.positionOffsetX || 0;
     document.getElementById('positionOffsetY').value = state.positionOffsetY || 0;
+    document.getElementById('qrcodeOffsetX').value = state.qrcodeOffsetX || 0;
+    document.getElementById('qrcodeOffsetY').value = state.qrcodeOffsetY || 0;
+    document.getElementById('qrSize').value = state.qrSize || 100;
 
     document.getElementById('colorValue').textContent = state.bgColor;
     document.getElementById('textColorValue').textContent = state.textColor;
-    document.getElementById('fontSizeValue').textContent = `${state.fontSize}px`;
+    document.getElementById('nameFontSizeValue').textContent = `${state.nameFontSize}px`;
+    document.getElementById('companyFontSizeValue').textContent = `${state.companyFontSize}px`;
+    document.getElementById('positionFontSizeValue').textContent = `${state.positionFontSize}px`;
     document.getElementById('opacityValue').textContent = `${opacity}%`;
     updateOffsetDisplay('nameOffsetXValue', state.nameOffsetX || 0);
     updateOffsetDisplay('nameOffsetYValue', state.nameOffsetY || 0);
@@ -742,6 +1030,9 @@ function syncControlsFromState(state, opacity = 100) {
     updateOffsetDisplay('companyOffsetYValue', state.companyOffsetY || 0);
     updateOffsetDisplay('positionOffsetXValue', state.positionOffsetX || 0);
     updateOffsetDisplay('positionOffsetYValue', state.positionOffsetY || 0);
+    updateOffsetDisplay('qrcodeOffsetXValue', state.qrcodeOffsetX || 0);
+    updateOffsetDisplay('qrcodeOffsetYValue', state.qrcodeOffsetY || 0);
+    document.getElementById('qrSizeValue').textContent = `${state.qrSize || 100}px`;
 
     document.getElementById('nameOffsetXInput').value = state.nameOffsetX || 0;
     document.getElementById('nameOffsetYInput').value = state.nameOffsetY || 0;
@@ -749,6 +1040,8 @@ function syncControlsFromState(state, opacity = 100) {
     document.getElementById('companyOffsetYInput').value = state.companyOffsetY || 0;
     document.getElementById('positionOffsetXInput').value = state.positionOffsetX || 0;
     document.getElementById('positionOffsetYInput').value = state.positionOffsetY || 0;
+    document.getElementById('qrcodeOffsetXInput').value = state.qrcodeOffsetX || 0;
+    document.getElementById('qrcodeOffsetYInput').value = state.qrcodeOffsetY || 0;
 
     updateCharCount((state.name || '').length);
 }
@@ -759,7 +1052,10 @@ function loadPreferredSettings() {
         if (saved) {
             const settings = JSON.parse(saved);
             window.nameplateState = settings.state;
+            normalizeFontSizes(window.nameplateState);
+            normalizeQrState(window.nameplateState);
             bgImageDataUrl = settings.bgImageDataUrl || null;
+            qrCodeDataUrl = settings.qrCodeDataUrl || null;
 
             syncControlsFromState(settings.state, settings.opacity || 100);
 
@@ -798,10 +1094,24 @@ function loadPreferredSettings() {
                 document.getElementById('clearImageBtn').style.display = 'none';
             }
 
+            if (qrCodeDataUrl) {
+                window.renderer.setQrCodeDataUrl(qrCodeDataUrl);
+                updateQrPreview(qrCodeDataUrl);
+            } else {
+                document.getElementById('qrImageInput').value = '';
+                document.getElementById('qrUrlInput').value = '';
+                window.renderer.clearQrCode();
+                const qrPreview = document.getElementById('qrPreview');
+                qrPreview.innerHTML = '<span>未設定 QRCode</span>';
+                qrPreview.classList.remove('has-image');
+                document.getElementById('clearQrBtn').style.display = 'none';
+            }
+
             triggerRender();
         } else {
             syncControlsFromState(window.nameplateState, document.getElementById('bgOpacity').value || 100);
             bgImageDataUrl = null;
+            qrCodeDataUrl = null;
         }
     } catch (err) {
         console.error('加載設置失敗:', err);

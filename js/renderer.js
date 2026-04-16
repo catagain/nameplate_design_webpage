@@ -6,6 +6,7 @@ class NameplateRenderer {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.bgImage = null;
+        this.qrImage = null;
         this.bgImageOpacity = 1;
     }
 
@@ -56,6 +57,31 @@ class NameplateRenderer {
     }
 
     /**
+     * 由 DataURL 設定 QRCode 圖片
+     */
+    setQrCodeDataUrl(dataUrl) {
+        if (!dataUrl) {
+            this.qrImage = null;
+            this.render(window.nameplateState);
+            return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            this.qrImage = img;
+            this.render(window.nameplateState);
+        };
+        img.src = dataUrl;
+    }
+
+    /**
+     * 清除 QRCode
+     */
+    clearQrCode() {
+        this.qrImage = null;
+    }
+
+    /**
      * 設定背景圖片透明度
      */
     setBackgroundOpacity(opacity) {
@@ -82,8 +108,30 @@ class NameplateRenderer {
         // 繪製文字
         this.drawText(state);
 
+        // 繪製 QRCode
+        this.drawQrCode(state);
+
         // 繪製邊框
         this.drawBorder();
+    }
+
+    /**
+     * 取得 QRCode 繪製資訊
+     */
+    getQrCodeRect(state) {
+        const size = state.qrSize || 100;
+        const centerX = this.canvas.width / 2 + (state.qrcodeOffsetX || 0);
+        const centerY = this.canvas.height / 2 + (state.qrcodeOffsetY || 0);
+
+        return {
+            centerX,
+            centerY,
+            size,
+            left: centerX - size / 2,
+            top: centerY - size / 2,
+            right: centerX + size / 2,
+            bottom: centerY + size / 2
+        };
     }
 
     /**
@@ -91,8 +139,11 @@ class NameplateRenderer {
      * 座標中心點在 Canvas 正中間 (500, 150)
      */
     getTextPositions(state) {
-        const { name, company, position, fontSize } = state;
+        const { name, company, position } = state;
         const { width, height } = this.canvas;
+        const nameFontSize = state.nameFontSize || state.fontSize || 48;
+        const companyFontSize = state.companyFontSize || Math.round(nameFontSize * 0.5);
+        const positionFontSize = state.positionFontSize || Math.round(nameFontSize * 0.5);
         
         // 基礎偏移 - 用於排列多行文字
         const nameOffsetX = state.nameOffsetX || 0;
@@ -110,16 +161,16 @@ class NameplateRenderer {
         const hasPosition = position && position.length > 0;
         const totalLines = (hasCompany ? 1 : 0) + 1 + (hasPosition ? 1 : 0);
         
-        const lineHeight = fontSize * 1.4;
-        const smallFontSize = fontSize * 0.5;
-        const smallLineHeight = smallFontSize * 1.4;
+        const nameLineHeight = nameFontSize * 1.4;
+        const companyLineHeight = companyFontSize * 1.4;
+        const positionLineHeight = positionFontSize * 1.4;
 
         const positions = [];
         let currentY = centerY;
         
         // 計算起始 Y（使所有文字垂直居中）
-        const totalHeight = (hasCompany ? smallLineHeight : 0) + lineHeight + (hasPosition ? smallLineHeight : 0);
-        currentY = centerY - totalHeight / 2 + (hasCompany ? smallLineHeight / 2 : lineHeight / 2);
+        const totalHeight = (hasCompany ? companyLineHeight : 0) + nameLineHeight + (hasPosition ? positionLineHeight : 0);
+        currentY = centerY - totalHeight / 2 + (hasCompany ? companyLineHeight / 2 : nameLineHeight / 2);
 
         if (hasCompany) {
             positions.push({
@@ -129,11 +180,11 @@ class NameplateRenderer {
                 y: currentY + companyOffsetY,
                 baseX: centerX,
                 baseY: currentY,
-                fontSize: smallFontSize,
+                fontSize: companyFontSize,
                 width: 100,
-                height: smallFontSize
+                height: companyFontSize
             });
-            currentY += smallLineHeight;
+            currentY += companyLineHeight;
         }
 
         positions.push({
@@ -143,23 +194,23 @@ class NameplateRenderer {
             y: currentY + nameOffsetY,
             baseX: centerX,
             baseY: currentY,
-            fontSize: fontSize,
+            fontSize: nameFontSize,
             width: 150,
-            height: fontSize
+            height: nameFontSize
         });
-        currentY += lineHeight;
+        currentY += nameLineHeight;
 
         if (hasPosition) {
             positions.push({
                 type: 'position',
                 text: position,
                 x: centerX + positionOffsetX,
-                y: centerY + positionOffsetY - (hasCompany ? smallLineHeight / 2 : 0) + lineHeight / 2,
+                y: currentY + positionOffsetY,
                 baseX: centerX,
-                baseY: centerY + positionOffsetY - (hasCompany ? smallLineHeight / 2 : 0),
-                fontSize: smallFontSize,
+                baseY: currentY,
+                fontSize: positionFontSize,
                 width: 100,
-                height: smallFontSize
+                height: positionFontSize
             });
         }
 
@@ -212,6 +263,13 @@ class NameplateRenderer {
      * 檢查點是否在文字元素內
      */
     getTextAtPoint(x, y) {
+        if (this.qrImage) {
+            const qr = this.getQrCodeRect(window.nameplateState);
+            if (x >= qr.left && x <= qr.right && y >= qr.top && y <= qr.bottom) {
+                return 'qrcode';
+            }
+        }
+
         const positions = this.getTextPositions(window.nameplateState);
         
         for (let pos of positions) {
@@ -239,7 +297,7 @@ class NameplateRenderer {
      * 繪製文字內容
      */
     drawText(state) {
-        const { name, company, position, fontSize, textColor, textShadow } = state;
+        const { textColor, textShadow } = state;
         const positions = this.getTextPositions(state);
 
         this.ctx.fillStyle = textColor;
@@ -273,6 +331,19 @@ class NameplateRenderer {
         // 繪製主要文字
         this.ctx.fillStyle = color;
         this.ctx.fillText(text, x, y);
+    }
+
+    /**
+     * 繪製 QRCode
+     */
+    drawQrCode(state) {
+        if (!this.qrImage) return;
+
+        const qr = this.getQrCodeRect(state);
+
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(qr.left - 4, qr.top - 4, qr.size + 8, qr.size + 8);
+        this.ctx.drawImage(this.qrImage, qr.left, qr.top, qr.size, qr.size);
     }
 
     /**
@@ -310,7 +381,9 @@ window.nameplateState = {
     company: '公司名稱',
     position: '職位名稱',
     bgColor: '#1e3a5f',
-    fontSize: 48,
+    nameFontSize: 48,
+    companyFontSize: 24,
+    positionFontSize: 24,
     textColor: '#ffffff',
     textShadow: false,
     // 分別的位置偏移 (預設值)
@@ -319,7 +392,10 @@ window.nameplateState = {
     companyOffsetX: 0,
     companyOffsetY: 100,      // 公司名稱預設向下100px
     positionOffsetX: 0,
-    positionOffsetY: -100     // 職位預設向上100px
+    positionOffsetY: -100,    // 職位預設向上100px
+    qrcodeOffsetX: 320,
+    qrcodeOffsetY: 0,
+    qrSize: 100
 };
 
 /**
@@ -329,25 +405,33 @@ const presets = {
     corporate: {
         bgColor: '#1e3a5f',
         textColor: '#ffffff',
-        fontSize: 48,
+        nameFontSize: 48,
+        companyFontSize: 24,
+        positionFontSize: 24,
         textShadow: true
     },
     blue: {
         bgColor: '#e0f2fe',
         textColor: '#0c4a6e',
-        fontSize: 48,
+        nameFontSize: 48,
+        companyFontSize: 24,
+        positionFontSize: 24,
         textShadow: false
     },
     modern: {
         bgColor: '#ffffff',
         textColor: '#1e293b',
-        fontSize: 48,
+        nameFontSize: 48,
+        companyFontSize: 24,
+        positionFontSize: 24,
         textShadow: false
     },
     tech: {
         bgColor: '#0f172a',
         textColor: '#e0e7ff',
-        fontSize: 48,
+        nameFontSize: 48,
+        companyFontSize: 24,
+        positionFontSize: 24,
         textShadow: true
     }
 };
