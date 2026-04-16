@@ -2,6 +2,8 @@
 
 一個網頁，用於建立、編輯和下載專業的會議桌上名牌（會議牌）。
 
+![image](https://cdn.discordapp.com/attachments/939053639081811988/1494245992558760086/image.png?ex=69e1e886&is=69e09706&hm=81b810b84345f9dd991e4bc7ed253176f7031abee19f013bc3a2dcb6c30d0ed1&)
+
 ## 功能特性
 
 ### 核心功能
