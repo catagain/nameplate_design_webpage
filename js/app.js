@@ -12,6 +12,9 @@ let dragState = {
     startOffsetY: 0
 };
 
+// 背景圖片 DataURL（用於下次訪問還原）
+let bgImageDataUrl = null;
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
     initRenderer();
@@ -149,26 +152,29 @@ function handleImageUpload(e) {
             return;
         }
 
-        window.renderer.setBackgroundImage(file);
-        
         // 顯示圖片預覽
         const reader = new FileReader();
         reader.onload = (e) => {
+            bgImageDataUrl = e.target.result;
+            window.renderer.setBackgroundImageDataUrl(bgImageDataUrl);
+
             const preview = document.getElementById('imagePreview');
             preview.innerHTML = `<img src="${e.target.result}" alt="背景預覽">`;
             preview.classList.add('has-image');
             document.getElementById('clearImageBtn').style.display = 'block';
+
+            saveSettings();
         };
         reader.readAsDataURL(file);
 
         showNotification('圖片已上傳', 'success');
-        saveSettings();
     }
 }
 
 function handleClearImage() {
     document.getElementById('bgImageInput').value = '';
     window.renderer.clearBackgroundImage();
+    bgImageDataUrl = null;
     
     const preview = document.getElementById('imagePreview');
     preview.innerHTML = '<span>未選擇圖片</span>';
@@ -658,7 +664,8 @@ function saveSettings() {
     try {
         const settings = {
             state: window.nameplateState,
-            opacity: document.getElementById('bgOpacity').value
+            opacity: document.getElementById('bgOpacity').value,
+            bgImageDataUrl: bgImageDataUrl
         };
         localStorage.setItem('nameplateSettings', JSON.stringify(settings));
     } catch (err) {
@@ -710,12 +717,29 @@ function loadPreferredSettings() {
         if (saved) {
             const settings = JSON.parse(saved);
             window.nameplateState = settings.state;
+            bgImageDataUrl = settings.bgImageDataUrl || null;
 
             syncControlsFromState(settings.state, settings.opacity || 100);
+
+            if (bgImageDataUrl) {
+                window.renderer.setBackgroundImageDataUrl(bgImageDataUrl);
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = `<img src="${bgImageDataUrl}" alt="背景預覽">`;
+                preview.classList.add('has-image');
+                document.getElementById('clearImageBtn').style.display = 'block';
+            } else {
+                document.getElementById('bgImageInput').value = '';
+                window.renderer.clearBackgroundImage();
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = '<span>未選擇圖片</span>';
+                preview.classList.remove('has-image');
+                document.getElementById('clearImageBtn').style.display = 'none';
+            }
 
             triggerRender();
         } else {
             syncControlsFromState(window.nameplateState, document.getElementById('bgOpacity').value || 100);
+            bgImageDataUrl = null;
         }
     } catch (err) {
         console.error('加載設置失敗:', err);

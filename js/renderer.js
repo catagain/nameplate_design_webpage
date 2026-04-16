@@ -31,6 +31,24 @@ class NameplateRenderer {
     }
 
     /**
+     * 由 DataURL 設定背景圖片（用於還原）
+     */
+    setBackgroundImageDataUrl(dataUrl) {
+        if (!dataUrl) {
+            this.bgImage = null;
+            this.render(window.nameplateState);
+            return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            this.bgImage = img;
+            this.render(window.nameplateState);
+        };
+        img.src = dataUrl;
+    }
+
+    /**
      * 清除背景圖片
      */
     clearBackgroundImage() {
