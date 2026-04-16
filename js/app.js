@@ -97,6 +97,26 @@ function attachEventListeners() {
 
     // 深色模式
     document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+
+    // 尺寸比例
+    document.querySelectorAll('.ratio-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const w = parseInt(btn.dataset.w);
+            const h = parseInt(btn.dataset.h);
+            applyAspectRatio(w, h);
+            document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('customRatioW').value = w;
+            document.getElementById('customRatioH').value = h;
+        });
+    });
+
+    document.getElementById('applyCustomRatioBtn').addEventListener('click', () => {
+        const w = parseInt(document.getElementById('customRatioW').value) || 10;
+        const h = parseInt(document.getElementById('customRatioH').value) || 3;
+        applyAspectRatio(w, h);
+        document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+    });
 }
 
 // ========== 基本資訊處理 ==========
@@ -660,12 +680,34 @@ function handleUpload() {
 }
 
 // ========== 存儲和加載設置 ==========
+// ========== 尺寸比例 ==========
+let currentAspectRatio = { w: 10, h: 3 };
+
+function applyAspectRatio(w, h) {
+    const canvasWidth = 1000;
+    const canvasHeight = Math.round(canvasWidth * h / w);
+    const canvas = document.getElementById('nameplate');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    currentAspectRatio = { w, h };
+
+    const sizeText = `目前尺寸: ${canvasWidth}×${canvasHeight} px`;
+    const canvasSizeInfo = document.getElementById('canvasSizeInfo');
+    if (canvasSizeInfo) canvasSizeInfo.textContent = sizeText;
+    const previewSizeInfo = document.getElementById('previewSizeInfo');
+    if (previewSizeInfo) previewSizeInfo.textContent = `預覽尺寸: ${canvasWidth}×${canvasHeight} px`;
+
+    triggerRender();
+    saveSettings();
+}
+
 function saveSettings() {
     try {
         const settings = {
             state: window.nameplateState,
             opacity: document.getElementById('bgOpacity').value,
-            bgImageDataUrl: bgImageDataUrl
+            bgImageDataUrl: bgImageDataUrl,
+            aspectRatio: currentAspectRatio
         };
         localStorage.setItem('nameplateSettings', JSON.stringify(settings));
     } catch (err) {
@@ -720,6 +762,26 @@ function loadPreferredSettings() {
             bgImageDataUrl = settings.bgImageDataUrl || null;
 
             syncControlsFromState(settings.state, settings.opacity || 100);
+
+            // 還原比例
+            if (settings.aspectRatio) {
+                const { w, h } = settings.aspectRatio;
+                const canvas = document.getElementById('nameplate');
+                canvas.width = 1000;
+                canvas.height = Math.round(1000 * h / w);
+                currentAspectRatio = { w, h };
+                // 同步 UI
+                document.getElementById('customRatioW').value = w;
+                document.getElementById('customRatioH').value = h;
+                document.querySelectorAll('.ratio-btn').forEach(btn => {
+                    btn.classList.toggle('active', parseInt(btn.dataset.w) === w && parseInt(btn.dataset.h) === h);
+                });
+                const canvasHeight = canvas.height;
+                const canvasSizeInfo = document.getElementById('canvasSizeInfo');
+                if (canvasSizeInfo) canvasSizeInfo.textContent = `目前尺寸: 1000×${canvasHeight} px`;
+                const previewSizeInfo = document.getElementById('previewSizeInfo');
+                if (previewSizeInfo) previewSizeInfo.textContent = `預覽尺寸: 1000×${canvasHeight} px`;
+            }
 
             if (bgImageDataUrl) {
                 window.renderer.setBackgroundImageDataUrl(bgImageDataUrl);

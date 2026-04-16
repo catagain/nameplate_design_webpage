@@ -119,6 +119,10 @@ header h1 {
     .main-content {
         grid-template-columns: 1fr;
     }
+
+    .preview-panel {
+        order: -1;
+    }
 }
 
 /* ========== 编辑面板 ========== */
@@ -350,6 +354,72 @@ input[type="checkbox"] {
 .btn-secondary:hover {
     background-color: #475569;
     box-shadow: var(--shadow-lg);
+}
+
+/* 比例選擇器 */
+.ratio-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ratio-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.ratio-btn:hover {
+    background: var(--bg-light);
+    border-color: var(--primary-color);
+}
+
+.ratio-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.ratio-btn .ratio-hint {
+    font-size: 10px;
+    opacity: 0.75;
+}
+
+.ratio-btn.active .ratio-hint {
+    opacity: 0.9;
+}
+
+.custom-ratio-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ratio-number-input {
+    width: 60px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-color);
+    font-size: 14px;
+    text-align: center;
+}
+
+.ratio-colon {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-color);
 }
 
 /* 位置控制組 */
@@ -714,7 +784,6 @@ input[type="checkbox"] {
     color: var(--footer-text);
     text-decoration: none;
     transition: color 0.2s ease;
-}
 }
 
 .footer-license a:hover {

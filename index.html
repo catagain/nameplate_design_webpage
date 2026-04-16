@@ -57,6 +57,37 @@
                 </section>
 
                 <section class="edit-section">
+                    <h2>尺寸比例</h2>
+
+                    <div class="form-group">
+                        <label>常見比例</label>
+                        <div class="ratio-presets">
+                            <button class="ratio-btn active" data-w="10" data-h="3">10:3<span class="ratio-hint">標準名牌</span></button>
+                            <button class="ratio-btn" data-w="2" data-h="1">2:1</button>
+                            <button class="ratio-btn" data-w="16" data-h="9">16:9</button>
+                            <button class="ratio-btn" data-w="16" data-h="10">16:10</button>
+                            <button class="ratio-btn" data-w="4" data-h="3">4:3</button>
+                            <button class="ratio-btn" data-w="3" data-h="2">3:2</button>
+                            <button class="ratio-btn" data-w="1" data-h="1">1:1</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>自訂比例</label>
+                        <div class="custom-ratio-group">
+                            <input type="number" id="customRatioW" min="1" max="100" value="10" class="ratio-number-input">
+                            <span class="ratio-colon">:</span>
+                            <input type="number" id="customRatioH" min="1" max="100" value="3" class="ratio-number-input">
+                            <button id="applyCustomRatioBtn" class="btn btn-secondary">套用</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group hint">
+                        <p id="canvasSizeInfo">目前尺寸: 1000×300 px</p>
+                    </div>
+                </section>
+
+                <section class="edit-section">
                     <h2>背景設定</h2>
                     
                     <div class="form-group">
@@ -328,7 +359,7 @@
                         ></canvas>
                     </div>
                     <div class="preview-info">
-                        <p>預覽尺寸: 1000×300 px (20cm×6cm @150dpi)</p>
+                        <p id="previewSizeInfo">預覽尺寸: 1000×300 px</p>
                         <p class="hint">💡 實時預覽 - 編輯內容時自動更新</p>
                     </div>
                 </div>
