@@ -63,15 +63,21 @@ class NameplateRenderer {
         if (!dataUrl) {
             this.qrImage = null;
             this.render(window.nameplateState);
-            return;
+            return Promise.resolve();
         }
 
-        const img = new Image();
-        img.onload = () => {
-            this.qrImage = img;
-            this.render(window.nameplateState);
-        };
-        img.src = dataUrl;
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                this.qrImage = img;
+                this.render(window.nameplateState);
+                resolve();
+            };
+            img.onerror = () => {
+                reject(new Error('QRCode 圖片載入失敗'));
+            };
+            img.src = dataUrl;
+        });
     }
 
     /**
@@ -155,59 +161,46 @@ class NameplateRenderer {
 
         const centerX = width / 2;
         const centerY = height / 2;
-        
-        // 計算應該有多少行
-        const hasCompany = company && company.length > 0;
-        const hasPosition = position && position.length > 0;
-        const totalLines = (hasCompany ? 1 : 0) + 1 + (hasPosition ? 1 : 0);
-        
-        const nameLineHeight = nameFontSize * 1.4;
-        const companyLineHeight = companyFontSize * 1.4;
-        const positionLineHeight = positionFontSize * 1.4;
-
+        const verticalGap = Math.round(height * 0.18);
+        const companyBaseY = centerY - verticalGap;
+        const nameBaseY = centerY;
+        const positionBaseY = centerY + verticalGap;
         const positions = [];
-        let currentY = centerY;
-        
-        // 計算起始 Y（使所有文字垂直居中）
-        const totalHeight = (hasCompany ? companyLineHeight : 0) + nameLineHeight + (hasPosition ? positionLineHeight : 0);
-        currentY = centerY - totalHeight / 2 + (hasCompany ? companyLineHeight / 2 : nameLineHeight / 2);
 
-        if (hasCompany) {
+        if (company && company.length > 0) {
             positions.push({
                 type: 'company',
                 text: company,
                 x: centerX + companyOffsetX,
-                y: currentY + companyOffsetY,
+                y: companyBaseY + companyOffsetY,
                 baseX: centerX,
-                baseY: currentY,
+                baseY: companyBaseY,
                 fontSize: companyFontSize,
                 width: 100,
                 height: companyFontSize
             });
-            currentY += companyLineHeight;
         }
 
         positions.push({
             type: 'name',
             text: name,
             x: centerX + nameOffsetX,
-            y: currentY + nameOffsetY,
+            y: nameBaseY + nameOffsetY,
             baseX: centerX,
-            baseY: currentY,
+            baseY: nameBaseY,
             fontSize: nameFontSize,
             width: 150,
             height: nameFontSize
         });
-        currentY += nameLineHeight;
 
-        if (hasPosition) {
+        if (position && position.length > 0) {
             positions.push({
                 type: 'position',
                 text: position,
                 x: centerX + positionOffsetX,
-                y: currentY + positionOffsetY,
+                y: positionBaseY + positionOffsetY,
                 baseX: centerX,
-                baseY: currentY,
+                baseY: positionBaseY,
                 fontSize: positionFontSize,
                 width: 100,
                 height: positionFontSize
@@ -390,9 +383,9 @@ window.nameplateState = {
     nameOffsetX: 0,
     nameOffsetY: 0,
     companyOffsetX: 0,
-    companyOffsetY: 100,      // 公司名稱預設向下100px
+    companyOffsetY: 0,
     positionOffsetX: 0,
-    positionOffsetY: -100,    // 職位預設向上100px
+    positionOffsetY: 0,
     qrcodeOffsetX: 320,
     qrcodeOffsetY: 0,
     qrSize: 100

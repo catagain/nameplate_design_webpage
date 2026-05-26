@@ -177,7 +177,9 @@ label {
 
 input[type="text"],
 input[type="file"],
-input[type="url"] {
+input[type="url"],
+input[type="number"],
+select {
     padding: 10px 12px;
     border: 1px solid var(--border-light);
     border-radius: 6px;
@@ -190,7 +192,9 @@ input[type="url"] {
 
 input[type="text"]:focus,
 input[type="file"]:focus,
-input[type="url"]:focus {
+input[type="url"]:focus,
+input[type="number"]:focus,
+select:focus {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -267,6 +271,7 @@ input[type="range"] {
     border-radius: 3px;
     background: var(--border-color);
     outline: none;
+    appearance: none;
     -webkit-appearance: none;
 }
 
@@ -543,6 +548,272 @@ input[type="checkbox"] {
     width: 100%;
 }
 
+.batch-helper-text {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--secondary-color);
+}
+
+.batch-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.batch-summary {
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    color: var(--secondary-color);
+    font-size: 13px;
+}
+
+.batch-preview-wrapper {
+    max-height: 300px;
+    overflow: auto;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-primary);
+}
+
+.batch-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.batch-preview-table th,
+.batch-preview-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+    vertical-align: top;
+}
+
+.batch-preview-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    z-index: 1;
+}
+
+.batch-preview-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.batch-preview-table tr.is-invalid {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.batch-preview-table tr.is-valid {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.batch-empty-state {
+    text-align: center;
+    color: var(--secondary-color);
+}
+
+.batch-status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-weight: 600;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.batch-status-pill.valid {
+    background: rgba(16, 185, 129, 0.14);
+    color: #047857;
+}
+
+.batch-status-pill.invalid {
+    background: rgba(239, 68, 68, 0.14);
+    color: #b91c1c;
+}
+
+.batch-row-errors {
+    display: block;
+    margin-top: 4px;
+    color: var(--danger-color);
+    line-height: 1.4;
+}
+
+.batch-row-apply-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.batch-row-apply-btn:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.batch-row-apply-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.batch-status-box {
+    margin-top: 0;
+}
+
+.batch-result-summary {
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-primary);
+    border: 1px dashed var(--border-light);
+    color: var(--secondary-color);
+    font-size: 13px;
+}
+
+.batch-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.batch-status-pill.exported {
+    background: rgba(37, 99, 235, 0.14);
+    color: #1d4ed8;
+}
+
+.batch-status-pill.failed {
+    background: rgba(239, 68, 68, 0.14);
+    color: #b91c1c;
+}
+
+.device-editor-grid,
+.device-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.device-select-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.device-select-row .btn {
+    white-space: nowrap;
+}
+
+.device-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.device-discovery-box {
+    margin-top: 0;
+}
+
+.device-summary-box,
+.api-result-box {
+    margin-top: 12px;
+}
+
+.device-controls {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
+}
+
+.checkbox-row {
+    justify-content: flex-end;
+}
+
+.checkbox-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+}
+
+.api-action-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.api-action-group {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.api-action-group h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.api-action-buttons {
+    display: grid;
+    gap: 8px;
+}
+
+.api-action-buttons.two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.api-result-output {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.device-controls[hidden],
+.device-panel-grid[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .batch-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .batch-action-buttons {
+        grid-template-columns: 1fr;
+    }
+
+    .batch-preview-table {
+        min-width: 640px;
+    }
+
+    .device-editor-grid,
+    .device-panel-grid,
+    .device-select-row,
+    .device-toolbar,
+    .api-action-buttons.two-column {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ========== 預覽面板 ========== */
 .preview-panel {
     display: flex;
@@ -669,6 +940,37 @@ input[type="checkbox"] {
 
 .api-section .btn {
     width: 100%;
+}
+
+.api-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.api-status-grid div {
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+}
+
+.api-status-grid strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.api-status-grid p {
+    margin: 0;
+    color: var(--secondary-color);
+    word-break: break-word;
+}
+
+@media (max-width: 900px) {
+    .api-status-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ========== 加載動畫 ========== */

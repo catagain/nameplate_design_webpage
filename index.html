@@ -213,8 +213,8 @@
                                         <input 
                                             type="range" 
                                             id="nameOffsetX" 
-                                            min="-450" 
-                                            max="450" 
+                                            min="-500" 
+                                            max="500" 
                                             value="0"
                                         >
                                         <span id="nameOffsetXValue">0px</span>
@@ -222,8 +222,8 @@
                                     <input 
                                         type="number" 
                                         id="nameOffsetXInput" 
-                                        min="-450" 
-                                        max="450" 
+                                        min="-500" 
+                                        max="500" 
                                         value="0"
                                         class="offset-number-input"
                                     >
@@ -237,8 +237,8 @@
                                         <input 
                                             type="range" 
                                             id="nameOffsetY" 
-                                            min="-200" 
-                                            max="200" 
+                                            min="-150" 
+                                            max="150" 
                                             value="0"
                                         >
                                         <span id="nameOffsetYValue">0px</span>
@@ -246,8 +246,8 @@
                                     <input 
                                         type="number" 
                                         id="nameOffsetYInput" 
-                                        min="-200" 
-                                        max="200" 
+                                        min="-150" 
+                                        max="150" 
                                         value="0"
                                         class="offset-number-input"
                                     >
@@ -265,8 +265,8 @@
                                         <input 
                                             type="range" 
                                             id="companyOffsetX" 
-                                            min="-450" 
-                                            max="450" 
+                                            min="-500" 
+                                            max="500" 
                                             value="0"
                                         >
                                         <span id="companyOffsetXValue">0px</span>
@@ -274,8 +274,8 @@
                                     <input 
                                         type="number" 
                                         id="companyOffsetXInput" 
-                                        min="-450" 
-                                        max="450" 
+                                        min="-500" 
+                                        max="500" 
                                         value="0"
                                         class="offset-number-input"
                                     >
@@ -289,18 +289,18 @@
                                         <input 
                                             type="range" 
                                             id="companyOffsetY" 
-                                            min="-200" 
-                                            max="200" 
-                                            value="100"
+                                            min="-150" 
+                                            max="150" 
+                                            value="0"
                                         >
-                                        <span id="companyOffsetYValue">100px</span>
+                                        <span id="companyOffsetYValue">0px</span>
                                     </div>
                                     <input 
                                         type="number" 
                                         id="companyOffsetYInput" 
-                                        min="-200" 
-                                        max="200" 
-                                        value="100"
+                                        min="-150" 
+                                        max="150" 
+                                        value="0"
                                         class="offset-number-input"
                                     >
                                     <button class="btn-center" id="companyYCenterBtn" title="置中">置中</button>
@@ -317,8 +317,8 @@
                                         <input 
                                             type="range" 
                                             id="positionOffsetX" 
-                                            min="-450" 
-                                            max="450" 
+                                            min="-500" 
+                                            max="500" 
                                             value="0"
                                         >
                                         <span id="positionOffsetXValue">0px</span>
@@ -326,8 +326,8 @@
                                     <input 
                                         type="number" 
                                         id="positionOffsetXInput" 
-                                        min="-450" 
-                                        max="450" 
+                                        min="-500" 
+                                        max="500" 
                                         value="0"
                                         class="offset-number-input"
                                     >
@@ -341,18 +341,18 @@
                                         <input 
                                             type="range" 
                                             id="positionOffsetY" 
-                                            min="-200" 
-                                            max="200" 
-                                            value="-100"
+                                            min="-150" 
+                                            max="150" 
+                                            value="0"
                                         >
-                                        <span id="positionOffsetYValue">-100px</span>
+                                        <span id="positionOffsetYValue">0px</span>
                                     </div>
                                     <input 
                                         type="number" 
                                         id="positionOffsetYInput" 
-                                        min="-200" 
-                                        max="200" 
-                                        value="-100"
+                                        min="-150" 
+                                        max="150" 
+                                        value="0"
                                         class="offset-number-input"
                                     >
                                     <button class="btn-center" id="positionYCenterBtn" title="置中">置中</button>
@@ -468,6 +468,286 @@
                     </div>
                 </section>
 
+                <section class="edit-section batch-section">
+                    <h2>批量產牌</h2>
+
+                    <div class="form-group">
+                        <label for="batchCsvInput">匯入 CSV 名單</label>
+                        <input
+                            type="file"
+                            id="batchCsvInput"
+                            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                            class="file-input"
+                        >
+                        <p class="batch-helper-text">支援 CSV / XLSX / XLS。欄位至少需包含 name、company、position；可選填 qrUrl 來為每筆資料產生 QRCode。</p>
+                    </div>
+
+                    <div class="batch-toolbar">
+                        <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載範本</button>
+                        <button id="batchClearBtn" class="btn btn-secondary" type="button">清除名單</button>
+                    </div>
+
+                    <div class="batch-summary" id="batchSummary">尚未匯入批次資料</div>
+
+                    <div class="batch-preview-wrapper">
+                        <table class="batch-preview-table">
+                            <thead>
+                                <tr>
+                                    <th>列</th>
+                                    <th>姓名</th>
+                                    <th>公司</th>
+                                    <th>職位</th>
+                                    <th>狀態</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchPreviewBody">
+                                <tr>
+                                    <td colspan="6" class="batch-empty-state">匯入 CSV 後會在這裡顯示預覽</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="form-group hint batch-status-box">
+                        <p id="batchStatusText">批量輸出會沿用目前版型、背景、字體大小、位置與 QRCode 設定，並直接下載 ZIP。</p>
+                    </div>
+
+                    <div class="batch-result-summary" id="batchResultSummary">尚未執行批量輸出</div>
+
+                    <div class="batch-action-buttons">
+                        <button id="batchExportBtn" class="btn btn-primary" type="button" disabled>
+                            批量下載 ZIP
+                        </button>
+                        <button id="batchRetryBtn" class="btn btn-secondary" type="button" disabled>
+                            重試失敗列
+                        </button>
+                        <button id="batchReportBtn" class="btn btn-secondary" type="button" disabled>
+                            下載結果報表
+                        </button>
+                    </div>
+                </section>
+
+                <section class="edit-section device-section">
+                    <h2>桌牌控制</h2>
+
+                    <div class="form-group">
+                        <label for="deviceSelect">更新目標桌牌</label>
+                        <div class="device-select-row">
+                            <select id="deviceSelect">
+                                <option value="">請先選擇桌牌</option>
+                            </select>
+                            <button id="refreshDeviceListBtn" class="btn btn-secondary" type="button">重新掃描</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group hint device-discovery-box">
+                        <p id="deviceDiscoveryStatus">等待掃描目前網路環境中的桌牌...</p>
+                    </div>
+
+                    <div class="device-editor-grid">
+                        <div class="form-group">
+                            <label for="deviceLabelInput">桌牌名稱</label>
+                            <input
+                                type="text"
+                                id="deviceLabelInput"
+                                placeholder="例如：A01 主桌"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="deviceHostInput">桌牌 IP / 網域</label>
+                            <input
+                                type="text"
+                                id="deviceHostInput"
+                                placeholder="192.168.1.88"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="devicePortInput">Port</label>
+                            <input
+                                type="number"
+                                id="devicePortInput"
+                                min="1"
+                                max="65535"
+                                value="80"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="deviceProtocolSelect">協定</label>
+                            <select id="deviceProtocolSelect">
+                                <option value="http">http</option>
+                                <option value="https">https</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="device-toolbar">
+                        <button id="saveDeviceBtn" class="btn btn-secondary" type="button">儲存桌牌</button>
+                        <button id="deleteDeviceBtn" class="btn btn-secondary" type="button">刪除桌牌</button>
+                    </div>
+
+                    <div class="form-group hint device-summary-box">
+                        <p id="deviceSummaryText">請先建立或選擇桌牌，才能操作 Philips API。</p>
+                    </div>
+
+                    <div id="deviceControlsPanel" class="device-controls" hidden>
+                        <div class="device-panel-grid">
+                            <div class="form-group">
+                                <label for="imageHostUrlInput">名牌圖片公開網址</label>
+                                <input
+                                    type="url"
+                                    id="imageHostUrlInput"
+                                    placeholder="http://localhost:3001/uploads/nameplate.jpg"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="displayCallbackUrlInput">換圖回報路徑</label>
+                                <input
+                                    type="text"
+                                    id="displayCallbackUrlInput"
+                                    value="/image-post"
+                                    placeholder="/image-post"
+                                >
+                            </div>
+
+                            <div class="form-group checkbox-row">
+                                <label for="imgDitherInput">抖動運算</label>
+                                <div class="checkbox-inline">
+                                    <input type="checkbox" id="imgDitherInput">
+                                    <span>啟用</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="serverAddrInput">Webhook Server 位址</label>
+                                <input
+                                    type="text"
+                                    id="serverAddrInput"
+                                    placeholder="192.168.1.10"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="serverPortInput">Webhook Server Port</label>
+                                <input
+                                    type="number"
+                                    id="serverPortInput"
+                                    min="1"
+                                    max="65535"
+                                    value="3001"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="heartbeatUrlInput">Heartbeat 路徑</label>
+                                <input
+                                    type="text"
+                                    id="heartbeatUrlInput"
+                                    value="/heartbeat"
+                                    placeholder="/heartbeat"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="heartbeatMinutesInput">Heartbeat 分鐘</label>
+                                <input
+                                    type="number"
+                                    id="heartbeatMinutesInput"
+                                    min="0"
+                                    max="999"
+                                    value="5"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="otaUrlInput">OTA 韌體網址</label>
+                                <input
+                                    type="url"
+                                    id="otaUrlInput"
+                                    placeholder="https://example.com/firmware.bin"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="networkModeSelect">IP 模式</label>
+                                <select id="networkModeSelect">
+                                    <option value="dhcp">dhcp</option>
+                                    <option value="static">static</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="staticNetworkFields" class="device-panel-grid" hidden>
+                            <div class="form-group">
+                                <label for="ipInput">IP</label>
+                                <input type="text" id="ipInput" placeholder="192.168.1.88">
+                            </div>
+                            <div class="form-group">
+                                <label for="netmaskInput">Netmask</label>
+                                <input type="text" id="netmaskInput" placeholder="255.255.255.0">
+                            </div>
+                            <div class="form-group">
+                                <label for="gatewayInput">Gateway</label>
+                                <input type="text" id="gatewayInput" placeholder="192.168.1.1">
+                            </div>
+                            <div class="form-group">
+                                <label for="dns1Input">DNS 1</label>
+                                <input type="text" id="dns1Input" placeholder="8.8.8.8">
+                            </div>
+                            <div class="form-group">
+                                <label for="dns2Input">DNS 2</label>
+                                <input type="text" id="dns2Input" placeholder="1.1.1.1">
+                            </div>
+                        </div>
+
+                        <div class="api-action-groups">
+                            <div class="api-action-group">
+                                <h3>畫面更新</h3>
+                                <div class="api-action-buttons two-column">
+                                    <button id="pushImageABtn" class="btn btn-primary" type="button">更新左側畫面 A</button>
+                                    <button id="pushImageBBtn" class="btn btn-primary" type="button">更新右側畫面 B</button>
+                                </div>
+                            </div>
+
+                            <div class="api-action-group">
+                                <h3>伺服器與心跳</h3>
+                                <div class="api-action-buttons two-column">
+                                    <button id="setServerBtn" class="btn btn-secondary" type="button">設定伺服器位址</button>
+                                    <button id="getServerBtn" class="btn btn-secondary" type="button">取得伺服器設定</button>
+                                    <button id="setHeartbeatBtn" class="btn btn-secondary" type="button">設定心跳</button>
+                                </div>
+                            </div>
+
+                            <div class="api-action-group">
+                                <h3>系統資訊與管理</h3>
+                                <div class="api-action-buttons two-column">
+                                    <button id="aboutBtn" class="btn btn-secondary" type="button">取得裝置資訊</button>
+                                    <button id="resetDeviceBtn" class="btn btn-secondary" type="button">重啟裝置</button>
+                                    <button id="factoryResetBtn" class="btn btn-secondary" type="button">恢復出廠設定</button>
+                                </div>
+                            </div>
+
+                            <div class="api-action-group">
+                                <h3>網路與更新</h3>
+                                <div class="api-action-buttons two-column">
+                                    <button id="changeIpBtn" class="btn btn-secondary" type="button">修改 IP 設定</button>
+                                    <button id="otaBtn" class="btn btn-secondary" type="button">觸發 OTA 更新</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group hint api-result-box">
+                            <p id="apiStatusText">選擇動作後，這裡會顯示 API 執行結果。</p>
+                        </div>
+
+                        <pre id="apiResultOutput" class="api-result-output">尚未呼叫 API</pre>
+                    </div>
+                </section>
+
                 <!-- 快速預設 -->
                 <section class="edit-section presets presets-in-editor">
                     <h3>快速預設</h3>
@@ -507,18 +787,22 @@
             </main>
         </div>
 
-        <!-- API 集成部分 (未來功能) -->
-        <footer class="api-section" id="apiSection" style="display: none;">
-            <h3>API 集成 (測試)</h3>
-            <div class="form-group">
-                <label for="uploadUrl">會議系統 API URL</label>
-                <input 
-                    type="text" 
-                    id="uploadUrl" 
-                    placeholder="https://api.meeting-system.com/nameplate"
-                >
+        <footer class="api-section" id="apiSection">
+            <h3>桌牌控制狀態</h3>
+            <div class="api-status-grid">
+                <div>
+                    <strong>目前桌牌</strong>
+                    <p id="footerDeviceName">尚未選擇</p>
+                </div>
+                <div>
+                    <strong>設備位址</strong>
+                    <p id="footerDeviceEndpoint">-</p>
+                </div>
+                <div>
+                    <strong>Webhook Server</strong>
+                    <p id="footerWebhookEndpoint">-</p>
+                </div>
             </div>
-            <button id="uploadBtn" class="btn btn-primary">上傳到會議系統</button>
         </footer>
     </div>
 
@@ -547,6 +831,8 @@
     <div id="notification" class="notification" style="display: none;"></div>
 
     <script src="js/vendor/qrcode.min.js"></script>
+    <script src="js/vendor/jszip.min.js"></script>
+    <script src="js/vendor/xlsx.full.min.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/app.js"></script>
 </body>

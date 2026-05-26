@@ -1,0 +1,8 @@
+name,company,position,deviceId,meetingId,qrUrl
+王小明,範例科技,Sales Director,DEV-001,MEET-20260526,https://example.com/checkin/DEV-001
+陳怡君,產品策略部,Product Manager,DEV-002,MEET-20260526,https://example.com/checkin/DEV-002
+林志豪,全球業務中心,Regional Lead,DEV-003,MEET-20260526,https://example.com/checkin/DEV-003
+,缺少姓名公司,Marketing Manager,DEV-004,MEET-20260526,https://example.com/checkin/DEV-004
+姓名超過二十個字元測試案例甲乙丙丁戊己庚辛,正常公司,Consultant,DEV-005,MEET-20260526,https://example.com/checkin/DEV-005
+王美玲,這是一個超過三十個字元的公司名稱測試案例,正常職位,DEV-006,MEET-20260526,https://example.com/checkin/DEV-006
+張家豪,正常公司,這是一個超過三十個字元的職位名稱測試案例,DEV-007,MEET-20260526,not-a-valid-url

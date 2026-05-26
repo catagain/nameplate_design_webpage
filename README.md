@@ -1,13 +1,14 @@
 # 會議名牌編輯器
 
-這個專案是一個純前端的會議名牌編輯工具，用來快速產出桌上名牌 PNG。現階段可在瀏覽器中直接編輯姓名、公司、職稱、背景、文字樣式與 QRCode，並即時預覽、下載圖片；後續預計再串接 Philips 電子紙會議名牌 API。
+這個專案是一個會議名牌編輯工具，用來快速產出桌上名牌 PNG，並可透過同一台電腦上的 Node.js 服務作為前端網站、圖片託管、Philips webhook 接收與區網桌牌掃描中介。現階段可在瀏覽器中直接編輯姓名、公司、職稱、背景、文字樣式與 QRCode，並即時預覽、下載圖片，再由整合式 server 協助呼叫 Philips 電子紙會議名牌 API。
 
 這份 README 的目的不是只放使用說明，而是把目前專案現況、待辦、串接前需要整理的資料，以及 GitHub 交接資訊集中在同一份文件，方便後續接手。
 
 ## 專案現況
 
 ### 目前已完成
-- 純靜態前端，直接開啟 `index.html` 即可使用
+- 可由同一個 Node.js / Express 服務提供前端頁面與中介 API
+- 仍可單獨開啟 `index.html` 檢查純前端畫面
 - Canvas 即時渲染名牌預覽
 - 支援姓名、公司/部門、職位三段文字
 - 支援背景色、背景圖、背景圖透明度
@@ -19,18 +20,19 @@
 - 支援 LocalStorage 自動保存設定
 - 支援深色模式
 - 支援匯出 PNG
-- 已保留 API 上傳區塊與前端上傳邏輯，但預設隱藏
+- 支援批量匯入 CSV / XLSX / XLS、批量 ZIP 匯出與結果報表
+- 已在左側加入 Philips 桌牌選擇與控制面板，可直接指定桌牌並呼叫對應 API
 
 ### 目前不是正式後端整合
-- 專案主體仍是前端頁面，沒有正式 production backend
-- `api-example.js` 是 Node.js + Express 的示範 API，不是目前前端實際依賴的正式服務
-- 畫面中的 API 區塊預設隱藏，代表串接功能仍在預留階段
-- Philips 電子紙名牌 API 尚未補上，因此目前還不能直接同步到裝置
+- 已可用同一個 Node.js / Express 服務同時提供前端頁面、圖片託管、Philips webhook 與區網裝置掃描
+- `api-example.js` 目前仍偏 demo / local deployment 形式，尚未補上正式 production 所需的認證、日誌、權限與佇列管理
+- Philips 裝置 discovery 採用同網段 `/24` 探測與 `GET /api/tableside/v1/about` 回應判定，適合區網內部使用，但不是官方 device registry
 
 ## 專案結構
 
 ```text
 namePlate_web/
+├── batch-test.csv
 ├── index.html
 ├── css/
 │   └── style.css
@@ -38,25 +40,41 @@ namePlate_web/
 │   ├── app.js
 │   ├── renderer.js
 │   └── vendor/
-│       └── qrcode.min.js
+│       ├── jszip.min.js
+│       ├── qrcode.min.js
+│       └── xlsx.full.min.js
 ├── api-example.js
+├── package-lock.json
+├── package.json
 └── README.md
 ```
 
 ### 主要檔案說明
-- `index.html`: 畫面結構、控制項、預留 API 區塊
+- `index.html`: 畫面結構、控制項、桌牌選擇與 Philips API 控制面板
 - `css/style.css`: 全部樣式與版面
-- `js/app.js`: 表單事件、狀態管理、LocalStorage、下載、API 上傳、深色模式、比例調整
+- `js/app.js`: 表單事件、狀態管理、LocalStorage、桌牌清單、Philips API 呼叫、深色模式、比例調整
 - `js/renderer.js`: Canvas 繪製、背景圖、文字、QRCode、匯出 Base64 / PNG
-- `js/vendor/qrcode.min.js`: 本地 QRCode 函式庫，供離線產生 QRCode
-- `api-example.js`: 範例後端，示範如何接收前端送出的 Base64 PNG 與名牌資料
+- `js/vendor/`: 本地第三方函式庫，包含 QRCode、JSZip、SheetJS XLSX
+- `api-example.js`: 整合式本機 server，提供前端頁面、圖片公開 URL、Philips webhook 與區網裝置掃描 API
+- `package.json`: 單機啟動用的 Node.js 依賴與 script
+- `batch-test.csv`: 批量產牌測試資料
 
 ## 快速使用
 
-### 方式 1
-直接用瀏覽器開啟 `index.html`。
+### 建議方式
+先安裝依賴並啟動整合式 server：
 
-### 方式 2
+```bash
+npm install
+npm start
+```
+
+啟動後打開 `http://localhost:3001`。
+
+### 備用方式
+仍可直接用瀏覽器開啟 `index.html` 檢查純前端排版，但這種方式不會啟用區網桌牌自動掃描。
+
+### 純靜態方式
 使用本地靜態伺服器。
 
 ```bash
@@ -107,6 +125,20 @@ npx http-server
 - 自動保存到 LocalStorage
 - 下次開啟會自動還原設定與主題
 
+### 桌牌控制
+- 下拉選單會透過同機 server 自動掃描目前區網中的桌牌並定期刷新
+- 可為掃描到的桌牌儲存別名，也可保留手動補充的裝置設定作為 fallback
+- 選擇桌牌後才顯示 Philips 可控制的 API 按鈕
+- 支援更新左 / 右側電子紙畫面、設定 server、heartbeat、changeip、ota、reset、preferences、about
+- 若未手動提供圖片網址，前端會嘗試把目前名牌轉成 JPEG 並上傳到 `api-example.js`，再把公開 URL 交給桌牌下載
+- 若 `Webhook Server 位址` 尚未設定，系統會優先套用本機 server 掃描到的區網 IP
+
+### 區網掃描限制
+- 自動掃描目前以本機私有 IPv4 網卡所在的 `/24` 網段為主
+- 掃描方式是嘗試呼叫 `GET /api/tableside/v1/about`，只有有回應的桌牌才會出現在下拉選單
+- 若桌牌不在同一子網、不是預設掃描 port，或被防火牆阻擋，就不會被自動發現
+- 若現場網路較複雜，建議保留手動補充的裝置設定作為備援
+
 ## 目前資料流
 
 ### 前端內部狀態
@@ -140,15 +172,16 @@ npx http-server
 - `nameplateSettings`: 名牌設定、背景圖、QRCode、比例
 - `theme`: 淺色或深色模式
 
-### 前端預留的上傳 payload
-目前 `handleUpload()` 送出的資料格式如下：
+### 前端圖片上傳 payload
+前端在需要自動產生桌牌圖片網址時，會送出以下 payload 到 `api-example.js`：
 
 ```json
 {
   "name": "王小明",
   "company": "範例公司",
   "position": "Sales Director",
-  "image": "data:image/png;base64,...",
+  "image": "data:image/jpeg;base64,...",
+  "format": "jpeg",
   "timestamp": "2026-05-25T12:00:00.000Z"
 }
 ```
@@ -163,8 +196,8 @@ npx http-server
 
 ### 現在已經有的基礎
 - 前端可輸出 PNG Base64
-- 已有預留 API URL 欄位與上傳按鈕
-- 已有示範後端可接收 `name + metadata + image`
+- 已有桌牌選擇 UI 與 Philips API 按鈕
+- 已有示範後端可接收 `name + metadata + image`，並提供 webhook 路由
 
 ### Philips API 補上後的建議串接方式
 建議不要讓前端直接綁死 Philips API，而是保留一層自家中介服務。
@@ -240,6 +273,10 @@ npx http-server
 - 補上上傳成功 / 失敗 / 重試中的 UI 狀態
 - 補上上傳歷程或操作記錄
 - 整理會議資料來源，確認是否來自既有會議系統或 CSV / Excel
+- 規劃批次產牌流程，支援使用者上傳 `xlsx` / `csv` 等表格檔批量建立名牌
+- 評估雲端硬碟 spreadsheet 讀取方案，確認要支援的來源平台、授權方式與檔案存取權限
+- 定義批次匯入欄位規格，至少包含 `name`、`company`、`position`，並預留 `deviceId`、`meetingId` 等串接欄位
+- 規劃批次預覽、匯入錯誤提示與部分失敗重試機制
 
 ### 低優先
 - 加入多版型模板
@@ -284,17 +321,29 @@ Content-Type: application/json
 
 專案中的 `api-example.js` 提供以下示範端點：
 - `GET /health`
+- `GET /api/philips/discover`
+- `GET /api/philips/callbacks`
 - `POST /api/nameplate/upload`
 - `GET /api/nameplate/list`
 - `GET /api/nameplate/:id`
 - `DELETE /api/nameplate/:id`
+- `POST /heartbeat`
+- `POST /image-post`
+- `POST /ota-post`
 
-用途是先驗證前端上傳 Base64 PNG 的流程，不代表 Philips 正式 API 設計。
+用途是先驗證前端、圖片託管、區網 discovery 與 Philips webhook 的整合流程，不代表 Philips 正式 production API 設計。
 
 ## 開發備註
 
-### 啟用前端 API 測試區塊
-目前 `index.html` 中的 API 區塊預設隱藏；若要人工測試上傳流程，需要先讓 `#apiSection` 顯示。
+### 建議啟動方式
+- 請優先使用 `npm start` 後，從 `http://localhost:3001` 開頁
+- 若使用 `file://` 直接開 `index.html`，桌牌自動掃描與 webhook 圖片託管流程不會完整工作
+
+### DHCP / Subnet 建議
+- 把 Philips 桌牌接在同一台具 DHCP 功能的 switch 上，不代表一定會落在固定 subnet
+- 能否落在同一 subnet，取決於 VLAN、DHCP scope、是否有其他 DHCP server、以及是否有靜態 IP 裝置混入
+- 若要讓自動掃描穩定，建議讓桌牌都位於同一 VLAN、同一 DHCP scope，並盡量固定在同一 `/24` 子網
+- 最穩的做法是對桌牌做 DHCP reservation，讓每台裝置依 MAC 取得固定 IP
 
 ### 建議後續補的工程項目
 - `.env` 或設定檔
