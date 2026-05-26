@@ -23,6 +23,7 @@ const BATCH_REQUIRED_COLUMNS = ['name', 'company', 'position'];
 const BATCH_OPTIONAL_COLUMNS = ['deviceId', 'meetingId', 'qrUrl'];
 const PHILIPS_API_PREFIX = '/api/tableside/v1';
 const PHILIPS_DISCOVERY_API = '/api/philips/discover';
+const PHILIPS_PROXY_API = '/api/philips/proxy';
 const PHILIPS_JPEG_MAX_BYTES = 750 * 1024;
 const PHILIPS_JPEG_MAX_WIDTH = 800;
 const PHILIPS_JPEG_MAX_HEIGHT = 480;
@@ -244,6 +245,7 @@ function createDefaultPhilipsControlState() {
         discoveredDevices: [],
         manualDevices: [],
         serverCandidates: [],
+        publicBaseUrl: '',
         selectedDeviceId: '',
         imageHostUrl: '',
         displayCallbackUrl: '/image-post',
@@ -368,6 +370,7 @@ function normalizePhilipsControlState(state) {
     normalized.discoveredDevices = [];
     normalized.devices = [];
     normalized.serverCandidates = Array.isArray(normalized.serverCandidates) ? normalized.serverCandidates : [];
+    normalized.publicBaseUrl = String(normalized.publicBaseUrl || '').trim();
 
     normalized.serverPort = parseInt(normalized.serverPort, 10) || defaults.serverPort;
     normalized.heartbeatMinutes = clampNumber(normalized.heartbeatMinutes, 0, 999, defaults.heartbeatMinutes);
@@ -410,21 +413,55 @@ function shouldAutofillServerAddr() {
     return !current || current === 'localhost' || current === '127.0.0.1';
 }
 
+function tryParseUrl(value) {
+    try {
+        return new URL(value);
+    } catch (error) {
+        return null;
+    }
+}
+
+function getPublicServerConfig() {
+    const candidate = philipsControlState.publicBaseUrl || (window.location.protocol !== 'file:' ? window.location.origin : '');
+    const parsed = tryParseUrl(candidate);
+
+    if (!parsed) {
+        return null;
+    }
+
+    const defaultPort = parsed.protocol === 'https:' ? 443 : 80;
+    return {
+        baseUrl: parsed.origin,
+        host: parsed.hostname,
+        port: clampNumber(parsed.port || defaultPort, 1, 65535, defaultPort),
+        protocol: parsed.protocol.replace(':', '')
+    };
+}
+
 function applyDiscoveryResult(payload) {
     philipsControlState.discoveredDevices = Array.isArray(payload.devices)
         ? payload.devices.map(device => normalizeDeviceRecord(device, 'discovered'))
         : [];
     philipsControlState.serverCandidates = Array.isArray(payload.serverCandidates) ? payload.serverCandidates : [];
+    philipsControlState.publicBaseUrl = String(payload.publicBaseUrl || philipsControlState.publicBaseUrl || '').trim();
     philipsControlState.lastDiscoveryAt = payload.scannedAt || '';
 
     if (shouldAutofillServerAddr()) {
-        const preferredServer = philipsControlState.serverCandidates.find(candidate => candidate.address) || null;
-        if (preferredServer) {
-            philipsControlState.serverAddr = preferredServer.address;
+        const publicServer = getPublicServerConfig();
+        if (publicServer) {
+            philipsControlState.serverAddr = publicServer.host;
+            philipsControlState.serverPort = publicServer.port;
+        } else {
+            const preferredServer = philipsControlState.serverCandidates.find(candidate => candidate.address) || null;
+            if (preferredServer) {
+                philipsControlState.serverAddr = preferredServer.address;
+            }
         }
     }
 
-    if ((philipsControlState.serverPort === 3001 || !philipsControlState.serverPort) && window.location.port) {
+    if (publicServer && (philipsControlState.serverPort === 3001 || !philipsControlState.serverPort)) {
+        philipsControlState.serverPort = publicServer.port;
+    } else if ((philipsControlState.serverPort === 3001 || !philipsControlState.serverPort) && window.location.port) {
         philipsControlState.serverPort = clampNumber(window.location.port, 1, 65535, 3001);
     }
 
@@ -635,7 +672,7 @@ function syncPhilipsPanel() {
     } else {
         const deviceBaseUrl = buildDeviceBaseUrl(selectedDevice);
         const sourceLabel = selectedDevice.source === 'manual' ? '手動' : '自動掃描';
-        summaryText.textContent = `目前選擇 ${selectedDevice.label || selectedDevice.device_id || selectedDevice.host}（${sourceLabel}），API 會送到 ${deviceBaseUrl}${PHILIPS_API_PREFIX}`;
+        summaryText.textContent = `目前選擇 ${selectedDevice.label || selectedDevice.device_id || selectedDevice.host}（${sourceLabel}），控制指令會先送到網站後端，再由後端轉發到 ${deviceBaseUrl}${PHILIPS_API_PREFIX}`;
         footerDeviceName.textContent = selectedDevice.label || selectedDevice.device_id || selectedDevice.host;
         footerDeviceEndpoint.textContent = deviceBaseUrl;
     }
@@ -659,11 +696,17 @@ function buildDeviceBaseUrl(device = getSelectedDevice()) {
 
 function buildWebhookServerBaseUrl() {
     syncPhilipsControlsToState();
-    if (!philipsControlState.serverAddr) {
-        return '';
+    const publicServer = getPublicServerConfig();
+    if (philipsControlState.serverAddr) {
+        const configuredPort = clampNumber(philipsControlState.serverPort, 1, 65535, publicServer ? publicServer.port : 3001);
+        if (publicServer && philipsControlState.serverAddr === publicServer.host && configuredPort === publicServer.port) {
+            return publicServer.baseUrl;
+        }
+
+        return `http://${philipsControlState.serverAddr}:${configuredPort}`;
     }
 
-    return `http://${philipsControlState.serverAddr}:${philipsControlState.serverPort}`;
+    return publicServer ? publicServer.baseUrl : '';
 }
 
 function updateApiResult(title, payload) {
@@ -685,37 +728,32 @@ async function performPhilipsRequest(path, options = {}) {
         throw new Error('請先選擇桌牌');
     }
 
-    const url = `${buildDeviceBaseUrl(selectedDevice)}${path}`;
-    const requestOptions = {
-        method: options.method || 'GET',
+    const response = await fetch(PHILIPS_PROXY_API, {
+        method: 'POST',
         headers: {
-            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            'Content-Type': 'application/json',
             ...(options.headers || {})
-        }
-    };
+        },
+        body: JSON.stringify({
+            device: selectedDevice,
+            path,
+            method: options.method || 'GET',
+            body: options.body || null
+        })
+    });
 
-    if (options.body) {
-        requestOptions.body = JSON.stringify(options.body);
-    }
+    const payload = await response.json();
 
-    const response = await fetch(url, requestOptions);
-    const responseText = await response.text();
-    let payload;
-
-    try {
-        payload = responseText ? JSON.parse(responseText) : { success: response.ok };
-    } catch (err) {
-        payload = responseText || { success: response.ok };
-    }
-
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}`);
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
     }
 
     return {
-        url,
-        status: response.status,
-        payload
+        url: payload.url,
+        status: payload.status || response.status,
+        payload: payload.payload,
+        forwardedTo: payload.forwardedTo,
+        forwardedRequest: payload.forwardedRequest
     };
 }
 
@@ -779,14 +817,12 @@ function exportPhilipsJpegDataUrl() {
 }
 
 async function uploadCurrentNameplateToWebhookServer() {
-    syncPhilipsControlsToState();
-    const serverBaseUrl = buildWebhookServerBaseUrl();
-    if (!serverBaseUrl) {
-        throw new Error('請先填寫可讓桌牌存取的 Webhook Server 位址與 Port，或直接輸入圖片公開網址');
+    if (window.location.protocol === 'file:') {
+        throw new Error('請改由同一台後端 server 開啟此頁，才能上傳圖片並提供桌牌存取');
     }
 
     const imageData = exportPhilipsJpegDataUrl();
-    const response = await fetch(`${serverBaseUrl}/api/nameplate/upload`, {
+    const response = await fetch('/api/nameplate/upload', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -806,7 +842,7 @@ async function uploadCurrentNameplateToWebhookServer() {
         throw new Error(payload.error || payload.message || `上傳圖片失敗: HTTP ${response.status}`);
     }
 
-    const publicUrl = payload.data?.publicUrl || `${serverBaseUrl}${payload.data?.url || ''}`;
+    const publicUrl = payload.data?.publicUrl || `${buildWebhookServerBaseUrl()}${payload.data?.url || ''}`;
     philipsControlState.imageHostUrl = publicUrl;
     document.getElementById('imageHostUrlInput').value = publicUrl;
     saveSettings();
@@ -847,10 +883,6 @@ async function handlePushDisplayImage(target) {
 async function handleSetServerConfig() {
     await withPhilipsAction('設定伺服器位址', async () => {
         syncPhilipsControlsToState();
-        if (!philipsControlState.serverAddr) {
-            throw new Error('請先填寫 Webhook Server 位址');
-        }
-
         return performPhilipsRequest(`${PHILIPS_API_PREFIX}/server`, {
             method: 'PUT',
             body: {

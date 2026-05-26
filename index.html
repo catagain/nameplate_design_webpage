@@ -612,6 +612,7 @@
                                     value="/image-post"
                                     placeholder="/image-post"
                                 >
+                                <small>可填相對路徑，送出時會由後端轉成對外可達網址</small>
                             </div>
 
                             <div class="form-group checkbox-row">
@@ -627,8 +628,9 @@
                                 <input
                                     type="text"
                                     id="serverAddrInput"
-                                    placeholder="192.168.1.10"
+                                    placeholder="留空則使用目前網站對外網址"
                                 >
+                                <small>若名牌可直接連到此網站，通常可留空讓後端自動帶入</small>
                             </div>
 
                             <div class="form-group">
@@ -650,6 +652,7 @@
                                     value="/heartbeat"
                                     placeholder="/heartbeat"
                                 >
+                                <small>支援相對路徑，後端會自動補成完整網址</small>
                             </div>
 
                             <div class="form-group">
@@ -670,6 +673,7 @@
                                     id="otaUrlInput"
                                     placeholder="https://example.com/firmware.bin"
                                 >
+                                <small>若填相對路徑，後端也會改寫成公開網址</small>
                             </div>
 
                             <div class="form-group">

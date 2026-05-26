@@ -71,6 +71,14 @@ npm start
 
 啟動後打開 `http://localhost:3001`。
 
+若要讓同網段其他裝置連進來，可直接打開：
+
+```text
+http://你的電腦區網IP:3001
+```
+
+例如 `http://192.168.1.25:3001`。
+
 ### 備用方式
 仍可直接用瀏覽器開啟 `index.html` 檢查純前端排版，但這種方式不會啟用區網桌牌自動掃描。
 
@@ -88,6 +96,188 @@ npx http-server
 ```
 
 啟動後打開 `http://localhost:8000`。
+
+## 對外網開放
+
+這個專案目前最適合的對外方式，是直接部署 `api-example.js` 這個 Node.js server，讓同一個服務同時提供：
+
+- 前端頁面 `/`
+- 圖片上傳 `/api/nameplate/upload`
+- 上傳圖片公開網址 `/uploads/...`
+- Philips callback `/heartbeat`、`/image-post`、`/ota-post`
+
+### 先判斷你的需求
+
+#### 需求 A：只要讓別人從外網打開編輯器
+可以部署到任何可公開存取的 Node.js 主機，例如：
+
+- 雲端 VM / VPS
+- 公司對外主機
+- Docker 容器平台
+
+#### 需求 B：外網也要能操作現場 Philips 桌牌
+這要額外注意：
+
+- `/api/philips/discover` 目前是掃描 server 所在機器的私有 IPv4 `/24` 子網
+- 也就是說，只有當 server 本身跟桌牌在同一個區網時，自動掃描才有意義
+- 如果網站部署在公有雲，通常掃不到你辦公室或會場內的桌牌
+- 這種情況建議保留「公開網站 + 區網內中介 server」兩層架構
+
+### 最小可行部署
+
+#### 1. 在對外主機上設定環境變數
+
+Windows PowerShell：
+
+```powershell
+$env:PORT=3001
+$env:HOST='0.0.0.0'
+$env:PUBLIC_BASE_URL='https://your-domain.example.com'
+npm start
+```
+
+Linux / macOS：
+
+```bash
+PORT=3001 HOST=0.0.0.0 PUBLIC_BASE_URL=https://your-domain.example.com npm start
+```
+
+`PUBLIC_BASE_URL` 很重要，因為上傳圖片後回傳的 `publicUrl` 會用這個網址，桌牌或外部裝置才能拿到正確連結。
+
+#### 2. 開放防火牆與入口
+
+至少要讓外部可連到你的 HTTP/HTTPS 入口：
+
+- 直接開 `3001` port 只適合測試
+- 正式環境建議使用 `80/443`
+- 建議在前面放 Nginx / Caddy / IIS 反向代理到本機 `3001`
+
+#### 3. 綁定網域
+
+把你的網域 DNS 指到這台主機，例如：
+
+```text
+nameplate.your-domain.example.com -> 你的公網 IP
+```
+
+#### 4. 啟用 HTTPS
+
+正式對外建議一定要用 HTTPS，原因：
+
+- 避免混合內容問題
+- 對外分享比較安全
+- 某些瀏覽器功能在 HTTPS 下相容性更好
+
+### 兩種常見做法
+
+#### 做法 1：部署到雲端主機
+
+適合：
+
+- 只需要外網編輯器
+- 需要固定網址
+- 需要多人遠端使用
+
+流程：
+
+1. 把專案放到雲端主機
+2. 執行 `npm install`
+3. 設定 `HOST=0.0.0.0`
+4. 設定 `PUBLIC_BASE_URL=https://你的網域`
+5. 用 Nginx / Caddy 轉發到 `localhost:3001`
+6. 開 HTTPS
+
+#### 做法 2：先在你自己的電腦對外測試
+
+適合：
+
+- 臨時 Demo
+- 還沒正式上雲
+
+流程：
+
+1. 在你的電腦執行 `npm start`
+2. 確認 Windows 防火牆允許 Node.js / 3001
+3. 在路由器做 port forwarding，把公網 port 導到這台電腦的 `3001`
+4. 設定 `PUBLIC_BASE_URL` 為你的公網網址或 DDNS
+
+這種方式風險較高，不建議長期使用。
+
+### 目前程式已支援的部分
+
+- 前端 API 主要使用相對路徑，可跟著同一個網站網域一起工作
+- server 可直接提供靜態頁與 API，不需要拆前後端
+- `PUBLIC_BASE_URL` 可控制對外產生的圖片 URL
+- Philips 控制現已可透過後端 `/api/philips/proxy` 轉發，不需要讓瀏覽器直接存取桌牌 IP
+- `display_callback_url`、`heartbeat_url`、`ota_url` 若填相對路徑，後端會自動展開成 `PUBLIC_BASE_URL` 對應的完整網址
+
+### 目前仍不建議直接公開的部分
+
+- `api-example.js` 目前沒有身份驗證
+- 沒有 rate limit
+- 沒有正式日誌、權限控管、佇列與重試機制
+- Philips discovery 是區網掃描，不是公開網際網路裝置註冊機制
+
+如果要正式上線，至少建議先補：
+
+1. 反向代理與 HTTPS
+2. API 身份驗證
+3. 上傳大小與 rate limit
+4. PM2 / NSSM / systemd 這類常駐程序管理
+5. 正式錯誤日誌
+
+### Nginx 反向代理範例
+
+可參考 `deploy/nginx.nameplate.conf`。部署時記得：
+
+- 反向代理到 `127.0.0.1:3001`
+- 對外網域要和 `PUBLIC_BASE_URL` 一致
+- 若 Philips 桌牌需要回呼 `heartbeat`、`image-post`、`ota-post`，這三條路徑必須能從桌牌網路連回你的網站
+
+### Philips 代理模式
+
+如果你要的是「外網使用者只操作網站，桌牌都由後端所在網路控制」，目前程式已符合這個方向：
+
+- 前端不再直接呼叫桌牌 IP
+- 前端會把桌牌操作送到後端 `/api/philips/proxy`
+- 後端再轉呼叫桌牌的 `/api/tableside/v1/...`
+- callback / webhook 類網址會優先使用 `PUBLIC_BASE_URL`
+
+因此正式部署時，建議至少設定：
+
+```bash
+HOST=0.0.0.0
+PORT=3001
+PUBLIC_BASE_URL=https://nameplate.your-domain.example.com
+```
+
+如果 Philips 桌牌不是透過公開網域回來，而是走內網 IP，也可以在前端介面中的 `Webhook Server 位址 / Port` 手動覆寫。
+
+*** Add File: c:\working_space\namePlate_web\deploy\nginx.nameplate.conf
+server {
+  listen 80;
+  server_name nameplate.example.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name nameplate.example.com;
+
+  ssl_certificate /etc/letsencrypt/live/nameplate.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/nameplate.example.com/privkey.pem;
+
+  client_max_body_size 50m;
+
+  location / {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+}
 
 ## 功能整理
 

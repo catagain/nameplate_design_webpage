@@ -19,7 +19,9 @@ const sharp = require('sharp');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const WEB_ROOT = __dirname;
 const DISCOVERY_TIMEOUT_MS = parseInt(process.env.DISCOVERY_TIMEOUT_MS || '900', 10);
@@ -31,6 +33,8 @@ const DISCOVERY_PORTS = String(process.env.DISCOVERY_PORTS || '80')
     .filter(port => !Number.isNaN(port) && port > 0 && port <= 65535);
 const DISCOVERY_HOST_LIMIT = 254;
 const DEFAULT_DISCOVERY_PORTS = DISCOVERY_PORTS.length > 0 ? DISCOVERY_PORTS : [80];
+const PHILIPS_API_PREFIX = '/api/tableside/v1';
+const PHILIPS_REQUEST_TIMEOUT_MS = parseInt(process.env.PHILIPS_REQUEST_TIMEOUT_MS || '8000', 10);
 let discoveryCache = {
     timestamp: 0,
     result: null,
@@ -58,6 +62,96 @@ function getPublicBaseUrl(req) {
     }
 
     return `${req.protocol}://${req.get('host')}`;
+}
+
+function getDefaultPort(protocol) {
+    return protocol === 'https:' || protocol === 'https' ? 443 : 80;
+}
+
+function getPublicEndpointConfig(req) {
+    const publicUrl = new URL(getPublicBaseUrl(req));
+    return {
+        baseUrl: publicUrl.toString().replace(/\/$/, ''),
+        host: publicUrl.hostname,
+        port: parseInt(publicUrl.port, 10) || getDefaultPort(publicUrl.protocol)
+    };
+}
+
+function normalizePublicUrl(req, value, fallbackPath = '') {
+    const rawValue = String(value || fallbackPath || '').trim();
+    if (!rawValue) {
+        return '';
+    }
+
+    try {
+        return new URL(rawValue).toString();
+    } catch (error) {
+        const normalizedPath = rawValue.startsWith('/') ? rawValue : `/${rawValue}`;
+        return `${getPublicBaseUrl(req)}${normalizedPath}`;
+    }
+}
+
+function normalizePhilipsDevice(device = {}) {
+    const protocol = device.protocol === 'https' ? 'https' : 'http';
+    const host = String(device.host || '').trim();
+    const parsedPort = parseInt(device.port, 10);
+    const port = Number.isNaN(parsedPort) ? getDefaultPort(protocol) : parsedPort;
+
+    if (!host) {
+        throw new Error('缺少桌牌 host');
+    }
+
+    return {
+        id: `${protocol}://${host}:${port}`,
+        protocol,
+        host,
+        port,
+        label: String(device.label || '').trim(),
+        device_id: String(device.device_id || '').trim()
+    };
+}
+
+function buildDeviceBaseUrl(device) {
+    const normalized = normalizePhilipsDevice(device);
+    const includePort = !((normalized.protocol === 'http' && normalized.port === 80) || (normalized.protocol === 'https' && normalized.port === 443));
+    return `${normalized.protocol}://${normalized.host}${includePort ? `:${normalized.port}` : ''}`;
+}
+
+function normalizePhilipsProxyBody(req, requestPath, method, body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return body;
+    }
+
+    const normalizedBody = { ...body };
+
+    if (requestPath.startsWith(`${PHILIPS_API_PREFIX}/display/image/`)) {
+        if (normalizedBody.img_target_url) {
+            normalizedBody.img_target_url = normalizePublicUrl(req, normalizedBody.img_target_url);
+        }
+
+        normalizedBody.display_callback_url = normalizePublicUrl(req, normalizedBody.display_callback_url, '/image-post');
+    }
+
+    if (requestPath === `${PHILIPS_API_PREFIX}/server` && method === 'PUT') {
+        const publicEndpoint = getPublicEndpointConfig(req);
+        const serverAddr = String(normalizedBody.server_addr || '').trim();
+
+        if (!serverAddr || serverAddr === 'localhost' || serverAddr === '127.0.0.1') {
+            normalizedBody.server_addr = publicEndpoint.host;
+        }
+
+        normalizedBody.server_port = parseInt(normalizedBody.server_port, 10) || publicEndpoint.port;
+    }
+
+    if (requestPath === `${PHILIPS_API_PREFIX}/heartbeat` && method === 'PUT') {
+        normalizedBody.heartbeat_url = normalizePublicUrl(req, normalizedBody.heartbeat_url, '/heartbeat');
+    }
+
+    if (requestPath === `${PHILIPS_API_PREFIX}/ota` && method === 'PUT' && normalizedBody.ota_url) {
+        normalizedBody.ota_url = normalizePublicUrl(req, normalizedBody.ota_url);
+    }
+
+    return normalizedBody;
 }
 
 function appendCallbackLog(type, body) {
@@ -176,7 +270,7 @@ async function mapWithConcurrency(items, concurrency, iteratee) {
 
 async function probePhilipsDevice(host, port) {
     const protocol = 'http';
-    const aboutUrl = `${protocol}://${host}:${port}/api/tableside/v1/about`;
+    const aboutUrl = `${protocol}://${host}:${port}${PHILIPS_API_PREFIX}/about`;
 
     try {
         const payload = await requestJson(aboutUrl);
@@ -245,6 +339,77 @@ async function discoverPhilipsDevices(forceRefresh = false) {
     return discoveryCache.inFlight;
 }
 
+function requestPhilipsDevice(device, requestPath, options = {}) {
+    const normalizedDevice = normalizePhilipsDevice(device);
+    const deviceBaseUrl = buildDeviceBaseUrl(normalizedDevice);
+    const targetUrl = new URL(`${deviceBaseUrl}${requestPath}`);
+    const client = targetUrl.protocol === 'https:' ? https : http;
+    const method = String(options.method || 'GET').toUpperCase();
+    const requestBody = options.body ? JSON.stringify(options.body) : '';
+    const headers = {
+        Accept: 'application/json',
+        ...(requestBody ? {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(requestBody)
+        } : {})
+    };
+
+    return new Promise((resolve, reject) => {
+        const request = client.request({
+            protocol: targetUrl.protocol,
+            hostname: targetUrl.hostname,
+            port: targetUrl.port || getDefaultPort(targetUrl.protocol),
+            path: `${targetUrl.pathname}${targetUrl.search}`,
+            method,
+            headers
+        }, response => {
+            let responseText = '';
+            response.setEncoding('utf8');
+            response.on('data', chunk => {
+                responseText += chunk;
+            });
+            response.on('end', () => {
+                let payload = null;
+
+                if (responseText) {
+                    try {
+                        payload = JSON.parse(responseText);
+                    } catch (error) {
+                        payload = responseText;
+                    }
+                }
+
+                if (response.statusCode < 200 || response.statusCode >= 300) {
+                    const requestError = new Error(`HTTP ${response.statusCode}`);
+                    requestError.statusCode = response.statusCode;
+                    requestError.payload = payload;
+                    reject(requestError);
+                    return;
+                }
+
+                resolve({
+                    status: response.statusCode,
+                    payload,
+                    rawText: responseText,
+                    url: targetUrl.toString(),
+                    deviceBaseUrl
+                });
+            });
+        });
+
+        request.on('error', reject);
+        request.setTimeout(PHILIPS_REQUEST_TIMEOUT_MS, () => {
+            request.destroy(new Error('Philips request timeout'));
+        });
+
+        if (requestBody) {
+            request.write(requestBody);
+        }
+
+        request.end();
+    });
+}
+
 /**
  * 健康檢查端點
  */
@@ -274,6 +439,58 @@ app.get('/api/philips/discover', async (req, res) => {
             success: false,
             error: '桌牌掃描失敗',
             message: error.message
+        });
+    }
+});
+
+app.post('/api/philips/proxy', async (req, res) => {
+    try {
+        const method = String(req.body?.method || 'GET').toUpperCase();
+        const requestPath = String(req.body?.path || '').trim();
+        const allowedMethods = new Set(['GET', 'POST', 'PUT', 'DELETE']);
+
+        if (!allowedMethods.has(method)) {
+            return res.status(400).json({
+                success: false,
+                error: '不支援的 HTTP method'
+            });
+        }
+
+        if (!requestPath.startsWith(PHILIPS_API_PREFIX)) {
+            return res.status(400).json({
+                success: false,
+                error: '不合法的 Philips API 路徑'
+            });
+        }
+
+        const device = normalizePhilipsDevice(req.body?.device || {});
+        const normalizedBody = normalizePhilipsProxyBody(req, requestPath, method, req.body?.body);
+        const result = await requestPhilipsDevice(device, requestPath, {
+            method,
+            body: normalizedBody
+        });
+
+        res.json({
+            success: true,
+            status: result.status,
+            payload: result.payload,
+            url: result.url,
+            forwardedTo: {
+                deviceId: device.id,
+                deviceBaseUrl: result.deviceBaseUrl
+            },
+            forwardedRequest: {
+                method,
+                path: requestPath,
+                body: normalizedBody
+            }
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            error: 'Philips API 轉發失敗',
+            message: error.message,
+            payload: error.payload || null
         });
     }
 });
@@ -524,12 +741,13 @@ app.use((err, req, res, next) => {
 /**
  * 啟動伺服器
  */
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
     console.log(`
 ╔════════════════════════════════════════╗
 ║  會議名牌編輯器 - API 服務               ║
 ╠════════════════════════════════════════╣
-║  伺服器運行在: http://localhost:${PORT} ║
+║  監聽位址: ${HOST}:${PORT}              ║
+║  建議對外網址: ${PUBLIC_BASE_URL || `http://localhost:${PORT}`} ║
 ║  上傳目錄: ${uploadDir}                 ║
 ║                                        ║
 ║  可用端點:                              ║
