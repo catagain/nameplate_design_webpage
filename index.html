@@ -69,6 +69,7 @@
                             <button class="ratio-btn" data-w="4" data-h="3">4:3</button>
                             <button class="ratio-btn" data-w="3" data-h="2">3:2</button>
                             <button class="ratio-btn" data-w="1" data-h="1">1:1</button>
+                            <button class="ratio-btn" data-w="2" data-h="1" data-canvas-width="800" data-canvas-height="400">會議桌牌<span class="ratio-hint">800×400</span></button>
                         </div>
                     </div>
 
@@ -714,6 +715,8 @@
                                 <div class="api-action-buttons two-column">
                                     <button id="pushImageABtn" class="btn btn-primary" type="button">更新左側畫面 A</button>
                                     <button id="pushImageBBtn" class="btn btn-primary" type="button">更新右側畫面 B</button>
+                                    <button id="getImageABtn" class="btn btn-secondary" type="button">讀取左側畫面 A</button>
+                                    <button id="getImageBBtn" class="btn btn-secondary" type="button">讀取右側畫面 B</button>
                                 </div>
                             </div>
 
@@ -730,6 +733,8 @@
                                 <h3>系統資訊與管理</h3>
                                 <div class="api-action-buttons two-column">
                                     <button id="aboutBtn" class="btn btn-secondary" type="button">取得裝置資訊</button>
+                                    <button id="viewCallbacksBtn" class="btn btn-secondary" type="button">查看 Callback 紀錄</button>
+                                    <button id="viewImageAccessLogBtn" class="btn btn-secondary" type="button">查看圖片抓取紀錄</button>
                                     <button id="resetDeviceBtn" class="btn btn-secondary" type="button">重啟裝置</button>
                                     <button id="factoryResetBtn" class="btn btn-secondary" type="button">恢復出廠設定</button>
                                 </div>

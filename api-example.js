@@ -48,12 +48,24 @@ app.use(cors());
 // 建立上傳目錄
 const uploadDir = path.join(__dirname, 'uploads');
 const callbackLogPath = path.join(uploadDir, 'philips-callbacks.json');
+const uploadAccessLogPath = path.join(uploadDir, 'upload-access-log.json');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 if (!fs.existsSync(callbackLogPath)) {
     fs.writeFileSync(callbackLogPath, '[]', 'utf8');
+}
+
+if (!fs.existsSync(uploadAccessLogPath)) {
+    fs.writeFileSync(uploadAccessLogPath, '[]', 'utf8');
+}
+
+function appendLimitedJsonLog(filePath, record, limit = 500) {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const list = JSON.parse(raw);
+    list.unshift(record);
+    fs.writeFileSync(filePath, JSON.stringify(list.slice(0, limit), null, 2), 'utf8');
 }
 
 function getPublicBaseUrl(req) {
@@ -155,14 +167,24 @@ function normalizePhilipsProxyBody(req, requestPath, method, body) {
 }
 
 function appendCallbackLog(type, body) {
-    const raw = fs.readFileSync(callbackLogPath, 'utf8');
-    const list = JSON.parse(raw);
-    list.unshift({
+    appendLimitedJsonLog(callbackLogPath, {
         type,
         timestamp: new Date().toISOString(),
         body
-    });
-    fs.writeFileSync(callbackLogPath, JSON.stringify(list.slice(0, 200), null, 2), 'utf8');
+    }, 200);
+}
+
+function appendUploadAccessLog(req, statusCode) {
+    appendLimitedJsonLog(uploadAccessLogPath, {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.originalUrl,
+        filename: path.basename(req.path || ''),
+        statusCode,
+        ip: req.ip,
+        userAgent: req.get('user-agent') || '',
+        referer: req.get('referer') || ''
+    }, 500);
 }
 
 function isPrivateIpv4(address) {
@@ -425,6 +447,33 @@ app.get('/api/philips/callbacks', (req, res) => {
     });
 });
 
+app.get('/api/nameplate/access-logs', (req, res) => {
+    const raw = fs.readFileSync(uploadAccessLogPath, 'utf8');
+    const list = JSON.parse(raw);
+    const filename = String(req.query.filename || '').trim();
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const decodedFilename = filename ? decodeURIComponent(filename) : '';
+    const filtered = filename
+        ? list.filter(item => {
+            const itemFilename = String(item.filename || '');
+            const decodedItemFilename = decodeURIComponent(itemFilename);
+            const itemPath = String(item.path || '');
+            return itemFilename === filename
+                || decodedItemFilename === filename
+                || itemFilename === decodedFilename
+                || decodedItemFilename === decodedFilename
+                || itemPath.includes(filename)
+                || itemPath.includes(encodeURIComponent(decodedFilename));
+        })
+        : list;
+
+    res.json({
+        success: true,
+        count: filtered.length,
+        data: filtered.slice(0, limit)
+    });
+});
+
 app.get('/api/philips/discover', async (req, res) => {
     try {
         const result = await discoverPhilipsDevices(req.query.force === '1');
@@ -476,7 +525,8 @@ app.post('/api/philips/proxy', async (req, res) => {
             payload: result.payload,
             url: result.url,
             forwardedTo: {
-                deviceId: device.id,
+                deviceId: device.device_id || '',
+                deviceKey: device.id,
                 deviceBaseUrl: result.deviceBaseUrl
             },
             forwardedRequest: {
@@ -522,7 +572,12 @@ app.post('/api/nameplate/upload', async (req, res) => {
 
         // 生成文件ID和文件名
         const fileId = `nameplate_${Date.now()}`;
-        const sanitizedName = name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '');
+        const sanitizedName = String(name || '')
+            .normalize('NFKD')
+            .replace(/[^\x00-\x7F]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toLowerCase() || 'nameplate';
         const normalizedFormat = String(format || '').toLowerCase() === 'jpeg' ? 'jpeg' : 'png';
         const extension = normalizedFormat === 'jpeg' ? 'jpg' : 'png';
         const filename = `${fileId}_${sanitizedName}.${extension}`;
@@ -719,6 +774,12 @@ app.delete('/api/nameplate/:id', (req, res) => {
 /**
  * 靜態文件讀取
  */
+app.use('/uploads', (req, res, next) => {
+    res.on('finish', () => {
+        appendUploadAccessLog(req, res.statusCode);
+    });
+    next();
+});
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(WEB_ROOT, { index: false }));
 
@@ -752,6 +813,7 @@ app.listen(PORT, HOST, () => {
 ║                                        ║
 ║  可用端點:                              ║
 ║  • POST   /api/nameplate/upload        ║
+║  • GET    /api/nameplate/access-logs   ║
 ║  • GET    /api/nameplate/list          ║
 ║  • GET    /api/nameplate/:id           ║
 ║  • DELETE /api/nameplate/:id           ║

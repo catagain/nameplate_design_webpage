@@ -206,7 +206,12 @@ function attachEventListeners() {
         btn.addEventListener('click', () => {
             const w = parseInt(btn.dataset.w);
             const h = parseInt(btn.dataset.h);
-            applyAspectRatio(w, h);
+            const canvasWidth = parseInt(btn.dataset.canvasWidth);
+            const canvasHeight = parseInt(btn.dataset.canvasHeight);
+            applyAspectRatio(w, h, {
+                canvasWidth: Number.isNaN(canvasWidth) ? undefined : canvasWidth,
+                canvasHeight: Number.isNaN(canvasHeight) ? undefined : canvasHeight
+            });
             document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('customRatioW').value = w;
@@ -229,10 +234,14 @@ function attachEventListeners() {
     document.getElementById('networkModeSelect').addEventListener('change', handleNetworkModeChange);
     document.getElementById('pushImageABtn').addEventListener('click', () => handlePushDisplayImage('a'));
     document.getElementById('pushImageBBtn').addEventListener('click', () => handlePushDisplayImage('b'));
+    document.getElementById('getImageABtn').addEventListener('click', () => handleGetDisplayImage('a'));
+    document.getElementById('getImageBBtn').addEventListener('click', () => handleGetDisplayImage('b'));
     document.getElementById('setServerBtn').addEventListener('click', handleSetServerConfig);
     document.getElementById('getServerBtn').addEventListener('click', handleGetServerConfig);
     document.getElementById('setHeartbeatBtn').addEventListener('click', handleSetHeartbeatConfig);
     document.getElementById('aboutBtn').addEventListener('click', handleGetDeviceAbout);
+    document.getElementById('viewCallbacksBtn').addEventListener('click', handleGetPhilipsCallbacks);
+    document.getElementById('viewImageAccessLogBtn').addEventListener('click', handleGetImageAccessLogs);
     document.getElementById('resetDeviceBtn').addEventListener('click', handleResetDevice);
     document.getElementById('factoryResetBtn').addEventListener('click', handleFactoryResetPreferences);
     document.getElementById('changeIpBtn').addEventListener('click', handleChangeIpConfig);
@@ -438,6 +447,99 @@ function getPublicServerConfig() {
     };
 }
 
+function buildApiUrl(baseUrl, path) {
+    if (!baseUrl) {
+        return path;
+    }
+
+    return new URL(path, `${baseUrl.replace(/\/$/, '')}/`).toString();
+}
+
+function collectPhilipsApiBaseCandidates() {
+    const candidates = [];
+    const seen = new Set();
+
+    function addCandidate(value) {
+        const parsed = tryParseUrl(value);
+        if (!parsed) {
+            return;
+        }
+
+        const normalized = parsed.origin;
+        if (seen.has(normalized)) {
+            return;
+        }
+
+        seen.add(normalized);
+        candidates.push(normalized);
+    }
+
+    if (window.location.protocol !== 'file:') {
+        addCandidate(window.location.origin);
+    }
+
+    const publicServer = getPublicServerConfig();
+    if (publicServer) {
+        addCandidate(publicServer.baseUrl);
+    }
+
+    syncPhilipsControlsToState();
+    const configuredPort = clampNumber(philipsControlState.serverPort, 1, 65535, publicServer ? publicServer.port : 3001);
+
+    addCandidate(`http://127.0.0.1:${configuredPort}`);
+    addCandidate(`http://localhost:${configuredPort}`);
+
+    if (philipsControlState.serverAddr) {
+        const isHttpsOrigin = publicServer && publicServer.protocol === 'https';
+        const explicitProtocol = isHttpsOrigin && configuredPort === 443 ? 'https' : 'http';
+        addCandidate(`${explicitProtocol}://${philipsControlState.serverAddr}:${configuredPort}`);
+    }
+
+    return candidates;
+}
+
+function isNetworkFetchError(error) {
+    return error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(error && error.message ? error.message : error));
+}
+
+function isUnexpectedHtmlApiResponse(response) {
+    if (!response) {
+        return false;
+    }
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('text/html')) {
+        return false;
+    }
+
+    return response.status === 404 || response.status === 405 || response.redirected;
+}
+
+async function fetchFromPhilipsApi(path, options = {}) {
+    const candidates = collectPhilipsApiBaseCandidates();
+    const urls = candidates.length > 0 ? candidates.map(baseUrl => buildApiUrl(baseUrl, path)) : [path];
+    let lastError = null;
+
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, options);
+            if (isUnexpectedHtmlApiResponse(response)) {
+                lastError = new Error(`非預期的 HTML 回應: ${url}`);
+                continue;
+            }
+
+            return response;
+        } catch (error) {
+            lastError = error;
+            if (!isNetworkFetchError(error)) {
+                throw error;
+            }
+        }
+    }
+
+    throw lastError || new Error(`無法連線到本機 Philips server: ${path}`);
+}
+
 function applyDiscoveryResult(payload) {
     philipsControlState.discoveredDevices = Array.isArray(payload.devices)
         ? payload.devices.map(device => normalizeDeviceRecord(device, 'discovered'))
@@ -445,9 +547,9 @@ function applyDiscoveryResult(payload) {
     philipsControlState.serverCandidates = Array.isArray(payload.serverCandidates) ? payload.serverCandidates : [];
     philipsControlState.publicBaseUrl = String(payload.publicBaseUrl || philipsControlState.publicBaseUrl || '').trim();
     philipsControlState.lastDiscoveryAt = payload.scannedAt || '';
+    const publicServer = getPublicServerConfig();
 
     if (shouldAutofillServerAddr()) {
-        const publicServer = getPublicServerConfig();
         if (publicServer) {
             philipsControlState.serverAddr = publicServer.host;
             philipsControlState.serverPort = publicServer.port;
@@ -485,7 +587,7 @@ async function refreshPhilipsDeviceList(forceRefresh = false, notifyOnFailure = 
 
     try {
         const url = forceRefresh ? `${PHILIPS_DISCOVERY_API}?force=1` : PHILIPS_DISCOVERY_API;
-        const response = await fetch(url, { cache: 'no-store' });
+        const response = await fetchFromPhilipsApi(url, { cache: 'no-store' });
         const payload = await response.json();
 
         if (!response.ok || !payload.success) {
@@ -728,7 +830,7 @@ async function performPhilipsRequest(path, options = {}) {
         throw new Error('請先選擇桌牌');
     }
 
-    const response = await fetch(PHILIPS_PROXY_API, {
+    const response = await fetchFromPhilipsApi(PHILIPS_PROXY_API, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -797,6 +899,20 @@ function dataUrlByteLength(dataUrl) {
     return Math.ceil((base64.length * 3) / 4);
 }
 
+function isAutoGeneratedNameplateImageUrl(rawUrl) {
+    const normalizedUrl = String(rawUrl || '').trim();
+    if (!normalizedUrl) {
+        return false;
+    }
+
+    try {
+        const parsed = new URL(normalizedUrl, window.location.origin);
+        return /^\/uploads\/nameplate_.*\.(jpg|jpeg|png)$/i.test(parsed.pathname);
+    } catch (error) {
+        return /^\/uploads\/nameplate_.*\.(jpg|jpeg|png)$/i.test(normalizedUrl);
+    }
+}
+
 function exportPhilipsJpegDataUrl() {
     const canvas = renderCanvasForPhilips();
     const qualities = [0.92, 0.86, 0.8, 0.72, 0.64, 0.56];
@@ -852,7 +968,7 @@ async function uploadCurrentNameplateToWebhookServer() {
 async function resolveImageTargetUrl() {
     syncPhilipsControlsToState();
 
-    if (philipsControlState.imageHostUrl) {
+    if (philipsControlState.imageHostUrl && !isAutoGeneratedNameplateImageUrl(philipsControlState.imageHostUrl)) {
         return philipsControlState.imageHostUrl;
     }
 
@@ -878,6 +994,12 @@ async function handlePushDisplayImage(target) {
             imageTargetUrl
         };
     });
+}
+
+async function handleGetDisplayImage(target) {
+    const targetLabel = target === 'a' ? '左側畫面 A' : '右側畫面 B';
+
+    await withPhilipsAction(`讀取${targetLabel}`, async () => performPhilipsRequest(`${PHILIPS_API_PREFIX}/display/image/${target}`));
 }
 
 async function handleSetServerConfig() {
@@ -912,6 +1034,71 @@ async function handleSetHeartbeatConfig() {
 
 async function handleGetDeviceAbout() {
     await withPhilipsAction('取得裝置資訊', async () => performPhilipsRequest(`${PHILIPS_API_PREFIX}/about`));
+}
+
+async function handleGetPhilipsCallbacks() {
+    showLoading(true);
+
+    try {
+        const response = await fetchFromPhilipsApi('/api/philips/callbacks', { cache: 'no-store' });
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+        }
+
+        updateApiResult('查看 Callback 紀錄', {
+            count: Array.isArray(payload.data) ? payload.data.length : 0,
+            data: Array.isArray(payload.data) ? payload.data : []
+        });
+        showNotification('已載入 Callback 紀錄', 'success');
+    } catch (error) {
+        updateApiResult('查看 Callback 紀錄失敗', { message: error.message });
+        showNotification(`查看 Callback 紀錄失敗: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function getCurrentImageFilename() {
+    const rawUrl = String(philipsControlState.imageHostUrl || document.getElementById('imageHostUrlInput').value || '').trim();
+    if (!rawUrl) {
+        return '';
+    }
+
+    try {
+        return decodeURIComponent(new URL(rawUrl).pathname.split('/').pop() || '');
+    } catch (error) {
+        const parts = rawUrl.split('/');
+        return decodeURIComponent(parts.pop() || '');
+    }
+}
+
+async function handleGetImageAccessLogs() {
+    showLoading(true);
+
+    try {
+        const filename = getCurrentImageFilename();
+        const query = filename ? `?filename=${encodeURIComponent(filename)}` : '';
+        const response = await fetchFromPhilipsApi(`/api/nameplate/access-logs${query}`, { cache: 'no-store' });
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+        }
+
+        updateApiResult('查看圖片抓取紀錄', {
+            filename: filename || null,
+            count: Array.isArray(payload.data) ? payload.data.length : 0,
+            data: Array.isArray(payload.data) ? payload.data : []
+        });
+        showNotification('已載入圖片抓取紀錄', 'success');
+    } catch (error) {
+        updateApiResult('查看圖片抓取紀錄失敗', { message: error.message });
+        showNotification(`查看圖片抓取紀錄失敗: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function handleResetDevice() {
@@ -2330,15 +2517,29 @@ function getPresetLabel(presetName) {
 
 // ========== 存儲和加載設置 ==========
 // ========== 尺寸比例 ==========
-let currentAspectRatio = { w: 10, h: 3 };
+let currentAspectRatio = { w: 10, h: 3, canvasWidth: 1000, canvasHeight: 300 };
 
-function applyAspectRatio(w, h) {
-    const canvasWidth = 1000;
-    const canvasHeight = Math.round(canvasWidth * h / w);
+function isFixedCanvasPreset(aspectRatio) {
+    if (!aspectRatio) {
+        return false;
+    }
+
+    const defaultCanvasHeight = Math.round(1000 * aspectRatio.h / aspectRatio.w);
+    const canvasWidth = aspectRatio.canvasWidth || 1000;
+    const canvasHeight = aspectRatio.canvasHeight || defaultCanvasHeight;
+
+    return canvasWidth !== 1000 || canvasHeight !== defaultCanvasHeight;
+}
+
+function applyAspectRatio(w, h, options = {}) {
+    const canvasWidth = Number.isFinite(options.canvasWidth) ? options.canvasWidth : 1000;
+    const canvasHeight = Number.isFinite(options.canvasHeight)
+        ? options.canvasHeight
+        : Math.round(canvasWidth * h / w);
     const canvas = document.getElementById('nameplate');
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
-    currentAspectRatio = { w, h };
+    currentAspectRatio = { w, h, canvasWidth, canvasHeight };
 
     const sizeText = `目前尺寸: ${canvasWidth}×${canvasHeight} px`;
     const canvasSizeInfo = document.getElementById('canvasSizeInfo');
@@ -2349,7 +2550,9 @@ function applyAspectRatio(w, h) {
     updateTextPositionControlRanges();
 
     triggerRender();
-    saveSettings();
+    if (!options.skipSave) {
+        saveSettings();
+    }
 }
 
 function saveSettings() {
@@ -2483,22 +2686,28 @@ function loadPreferredSettings() {
 
             // 還原比例
             if (settings.aspectRatio) {
-                const { w, h } = settings.aspectRatio;
-                const canvas = document.getElementById('nameplate');
-                canvas.width = 1000;
-                canvas.height = Math.round(1000 * h / w);
-                currentAspectRatio = { w, h };
+                const { w, h, canvasWidth, canvasHeight } = settings.aspectRatio;
+                applyAspectRatio(w, h, {
+                    canvasWidth,
+                    canvasHeight,
+                    skipSave: true
+                });
                 // 同步 UI
                 document.getElementById('customRatioW').value = w;
                 document.getElementById('customRatioH').value = h;
                 document.querySelectorAll('.ratio-btn').forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.w) === w && parseInt(btn.dataset.h) === h);
+                    const buttonCanvasWidth = parseInt(btn.dataset.canvasWidth);
+                    const buttonCanvasHeight = parseInt(btn.dataset.canvasHeight);
+                    const hasFixedCanvasSize = !Number.isNaN(buttonCanvasWidth) && !Number.isNaN(buttonCanvasHeight);
+                    const matchesFixedCanvasSize = hasFixedCanvasSize &&
+                        buttonCanvasWidth === currentAspectRatio.canvasWidth &&
+                        buttonCanvasHeight === currentAspectRatio.canvasHeight;
+                    const matchesRatioOnly = !hasFixedCanvasSize &&
+                        !isFixedCanvasPreset(currentAspectRatio) &&
+                        parseInt(btn.dataset.w) === w &&
+                        parseInt(btn.dataset.h) === h;
+                    btn.classList.toggle('active', matchesFixedCanvasSize || matchesRatioOnly);
                 });
-                const canvasHeight = canvas.height;
-                const canvasSizeInfo = document.getElementById('canvasSizeInfo');
-                if (canvasSizeInfo) canvasSizeInfo.textContent = `目前尺寸: 1000×${canvasHeight} px`;
-                const previewSizeInfo = document.getElementById('previewSizeInfo');
-                if (previewSizeInfo) previewSizeInfo.textContent = `預覽尺寸: 1000×${canvasHeight} px`;
             }
 
             if (bgImageDataUrl) {

@@ -71,6 +71,25 @@ npm start
 
 啟動後打開 `http://localhost:3001`。
 
+如果你想在電腦上直接一鍵啟動，可使用專案根目錄內的腳本：
+
+Windows:
+
+```bat
+start-nameplate.bat
+```
+
+macOS / Linux:
+
+```bash
+chmod +x start-nameplate.sh
+./start-nameplate.sh
+```
+
+這兩個腳本會自動檢查 `node` / `npm`、必要時執行 `npm install`、啟動本機整合式 server，並開啟瀏覽器到可用的本機網址。
+
+如果 `3001` 已被占用，腳本會自動往上尋找下一個可用 port，例如 `3002`、`3003`。如果你有先設定 `PORT` 環境變數，腳本會從你指定的 port 開始往上找。
+
 若要讓同網段其他裝置連進來，可直接打開：
 
 ```text
