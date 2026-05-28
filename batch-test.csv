@@ -1,8 +1,8 @@
-name,company,position,deviceId,meetingId,qrUrl
-王小明,範例科技,Sales Director,DEV-001,MEET-20260526,https://example.com/checkin/DEV-001
-陳怡君,產品策略部,Product Manager,DEV-002,MEET-20260526,https://example.com/checkin/DEV-002
-林志豪,全球業務中心,Regional Lead,DEV-003,MEET-20260526,https://example.com/checkin/DEV-003
-,缺少姓名公司,Marketing Manager,DEV-004,MEET-20260526,https://example.com/checkin/DEV-004
-姓名超過二十個字元測試案例甲乙丙丁戊己庚辛,正常公司,Consultant,DEV-005,MEET-20260526,https://example.com/checkin/DEV-005
-王美玲,這是一個超過三十個字元的公司名稱測試案例,正常職位,DEV-006,MEET-20260526,https://example.com/checkin/DEV-006
-張家豪,正常公司,這是一個超過三十個字元的職位名稱測試案例,DEV-007,MEET-20260526,not-a-valid-url
+name,company,position,deviceTarget,meetingId,qrUrl
+王小明,範例科技,Sales Director,A01 主桌,MEET-20260526,https://example.com/checkin/DEV-001
+陳怡君,產品策略部,Product Manager,192.168.1.88,MEET-20260526,https://example.com/checkin/DEV-002
+林志豪,全球業務中心,Regional Lead,B02 會議桌,MEET-20260526,https://example.com/checkin/DEV-003
+,缺少姓名公司,Marketing Manager,192.168.1.89,MEET-20260526,https://example.com/checkin/DEV-004
+姓名超過二十個字元測試案例甲乙丙丁戊己庚辛,正常公司,Consultant,A03 主管桌,MEET-20260526,https://example.com/checkin/DEV-005
+王美玲,這是一個超過三十個字元的公司名稱測試案例,正常職位,192.168.1.90,MEET-20260526,https://example.com/checkin/DEV-006
+張家豪,正常公司,這是一個超過三十個字元的職位名稱測試案例,B04 貴賓桌,MEET-20260526,not-a-valid-url

@@ -310,55 +310,87 @@ async function probePhilipsDevice(host, port) {
     }
 }
 
-async function discoverPhilipsDevices(forceRefresh = false) {
-    const now = Date.now();
+async function runPhilipsDiscoveryScan() {
+    const interfaces = listLanInterfaces();
+    const targets = [];
+    const seenTargets = new Set();
 
-    if (!forceRefresh && discoveryCache.result && now - discoveryCache.timestamp < DISCOVERY_CACHE_MS) {
-        return discoveryCache.result;
-    }
+    interfaces.forEach(networkInterface => {
+        buildSubnetCandidates(networkInterface.address).forEach(host => {
+            DEFAULT_DISCOVERY_PORTS.forEach(port => {
+                const key = `${host}:${port}`;
+                if (seenTargets.has(key)) {
+                    return;
+                }
 
+                seenTargets.add(key);
+                targets.push({ host, port });
+            });
+        });
+    });
+
+    const scanned = await mapWithConcurrency(targets, DISCOVERY_CONCURRENCY, async target => probePhilipsDevice(target.host, target.port));
+    const devices = scanned.filter(Boolean);
+
+    return {
+        scannedAt: new Date().toISOString(),
+        interfaces,
+        devices,
+        targetCount: targets.length
+    };
+}
+
+function refreshPhilipsDiscoveryInBackground() {
     if (discoveryCache.inFlight) {
         return discoveryCache.inFlight;
     }
 
-    discoveryCache.inFlight = (async () => {
-        const interfaces = listLanInterfaces();
-        const targets = [];
-        const seenTargets = new Set();
-
-        interfaces.forEach(networkInterface => {
-            buildSubnetCandidates(networkInterface.address).forEach(host => {
-                DEFAULT_DISCOVERY_PORTS.forEach(port => {
-                    const key = `${host}:${port}`;
-                    if (seenTargets.has(key)) {
-                        return;
-                    }
-
-                    seenTargets.add(key);
-                    targets.push({ host, port });
-                });
-            });
+    discoveryCache.inFlight = runPhilipsDiscoveryScan()
+        .then(result => {
+            discoveryCache.timestamp = Date.now();
+            discoveryCache.result = result;
+            discoveryCache.inFlight = null;
+            return result;
+        })
+        .catch(error => {
+            discoveryCache.inFlight = null;
+            throw error;
         });
 
-        const scanned = await mapWithConcurrency(targets, DISCOVERY_CONCURRENCY, async target => probePhilipsDevice(target.host, target.port));
-        const devices = scanned.filter(Boolean);
-        const result = {
-            scannedAt: new Date().toISOString(),
-            interfaces,
-            devices,
-            targetCount: targets.length
-        };
-
-        discoveryCache.timestamp = Date.now();
-        discoveryCache.result = result;
-        discoveryCache.inFlight = null;
-        return result;
-    })().catch(error => {
-        discoveryCache.inFlight = null;
-        throw error;
-    });
-
     return discoveryCache.inFlight;
+}
+
+async function discoverPhilipsDevices(forceRefresh = false) {
+    const now = Date.now();
+
+    if (!forceRefresh && discoveryCache.result) {
+        const ageMs = now - discoveryCache.timestamp;
+        if (ageMs >= DISCOVERY_CACHE_MS) {
+            refreshPhilipsDiscoveryInBackground();
+        }
+
+        return {
+            ...discoveryCache.result,
+            servedFromCache: true,
+            refreshing: Boolean(discoveryCache.inFlight)
+        };
+    }
+
+    if (discoveryCache.inFlight) {
+        const result = await discoveryCache.inFlight;
+        return {
+            ...result,
+            servedFromCache: false,
+            refreshing: false
+        };
+    }
+
+    const result = await refreshPhilipsDiscoveryInBackground();
+    return {
+        ...result,
+        servedFromCache: false,
+        refreshing: false
+    };
 }
 
 function requestPhilipsDevice(device, requestPath, options = {}) {
@@ -481,7 +513,8 @@ app.get('/api/philips/discover', async (req, res) => {
             success: true,
             ...result,
             serverCandidates: listLanInterfaces(),
-            publicBaseUrl: getPublicBaseUrl(req)
+            publicBaseUrl: getPublicBaseUrl(req),
+            refreshing: Boolean(result.refreshing)
         });
     } catch (error) {
         res.status(500).json({
@@ -604,7 +637,7 @@ app.post('/api/nameplate/upload', async (req, res) => {
         if (normalizedFormat === 'jpeg') {
             outputBuffer = await sharp(buffer)
                 .flatten({ background: '#ffffff' })
-                .jpeg({ quality: 88, mozjpeg: true })
+                .jpeg({ quality: 88, mozjpeg: false, progressive: false })
                 .toBuffer();
         }
 
@@ -662,7 +695,10 @@ app.post('/heartbeat', (req, res) => {
 });
 
 app.post('/image-post', (req, res) => {
-    appendCallbackLog('image-post', req.body);
+    appendCallbackLog('image-post', {
+        ...req.body,
+        query: req.query || {}
+    });
     console.log('收到 image-post:', req.body);
     res.json({ success: true, received: true });
 });
@@ -780,7 +816,15 @@ app.use('/uploads', (req, res, next) => {
     });
     next();
 });
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', express.static(uploadDir, {
+    etag: false,
+    lastModified: false,
+    setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
 app.use(express.static(WEB_ROOT, { index: false }));
 
 app.get('/', (req, res) => {

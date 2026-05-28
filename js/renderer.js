@@ -147,9 +147,9 @@ class NameplateRenderer {
     getTextPositions(state) {
         const { name, company, position } = state;
         const { width, height } = this.canvas;
-        const nameFontSize = state.nameFontSize || state.fontSize || 48;
-        const companyFontSize = state.companyFontSize || Math.round(nameFontSize * 0.5);
-        const positionFontSize = state.positionFontSize || Math.round(nameFontSize * 0.5);
+        const nameFontSize = state.nameFontSize || state.fontSize || 120;
+        const companyFontSize = state.companyFontSize || Math.max(24, Math.round(nameFontSize * 0.42));
+        const positionFontSize = state.positionFontSize || Math.max(24, Math.round(nameFontSize * 0.42));
         
         // 基礎偏移 - 用於排列多行文字
         const nameOffsetX = state.nameOffsetX || 0;
@@ -161,7 +161,7 @@ class NameplateRenderer {
 
         const centerX = width / 2;
         const centerY = height / 2;
-        const verticalGap = Math.round(height * 0.18);
+        const verticalGap = Math.max(Math.round(height * 0.23), Math.round(nameFontSize * 0.95));
         const companyBaseY = centerY - verticalGap;
         const nameBaseY = centerY;
         const positionBaseY = centerY + verticalGap;
@@ -256,7 +256,7 @@ class NameplateRenderer {
      * 檢查點是否在文字元素內
      */
     getTextAtPoint(x, y) {
-        if (this.qrImage) {
+        if (this.qrImage && window.nameplateState.qrVisible !== false) {
             const qr = this.getQrCodeRect(window.nameplateState);
             if (x >= qr.left && x <= qr.right && y >= qr.top && y <= qr.bottom) {
                 return 'qrcode';
@@ -330,7 +330,7 @@ class NameplateRenderer {
      * 繪製 QRCode
      */
     drawQrCode(state) {
-        if (!this.qrImage) return;
+        if (!this.qrImage || state.qrVisible === false) return;
 
         const qr = this.getQrCodeRect(state);
 
@@ -374,9 +374,9 @@ window.nameplateState = {
     company: '公司名稱',
     position: '職位名稱',
     bgColor: '#1e3a5f',
-    nameFontSize: 48,
-    companyFontSize: 24,
-    positionFontSize: 24,
+    nameFontSize: 120,
+    companyFontSize: 50,
+    positionFontSize: 50,
     textColor: '#ffffff',
     textShadow: false,
     // 分別的位置偏移 (預設值)
@@ -386,9 +386,10 @@ window.nameplateState = {
     companyOffsetY: 0,
     positionOffsetX: 0,
     positionOffsetY: 0,
-    qrcodeOffsetX: 320,
+    qrcodeOffsetX: -280,
     qrcodeOffsetY: 0,
-    qrSize: 100
+    qrSize: 100,
+    qrVisible: true
 };
 
 /**
@@ -398,33 +399,33 @@ const presets = {
     corporate: {
         bgColor: '#1e3a5f',
         textColor: '#ffffff',
-        nameFontSize: 48,
-        companyFontSize: 24,
-        positionFontSize: 24,
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
         textShadow: true
     },
     blue: {
         bgColor: '#e0f2fe',
         textColor: '#0c4a6e',
-        nameFontSize: 48,
-        companyFontSize: 24,
-        positionFontSize: 24,
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
         textShadow: false
     },
     modern: {
         bgColor: '#ffffff',
         textColor: '#1e293b',
-        nameFontSize: 48,
-        companyFontSize: 24,
-        positionFontSize: 24,
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
         textShadow: false
     },
     tech: {
         bgColor: '#0f172a',
         textColor: '#e0e7ff',
-        nameFontSize: 48,
-        companyFontSize: 24,
-        positionFontSize: 24,
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
         textShadow: true
     }
 };

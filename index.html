@@ -21,6 +21,17 @@
         <div class="main-content">
             <!-- 左側編輯面板 -->
             <aside class="edit-panel">
+                <!-- 快速預設 -->
+                <section class="edit-section presets presets-in-editor">
+                    <h3>快速預設</h3>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-preset="corporate">企業風格</button>
+                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
+                        <button class="preset-btn" data-preset="modern">現代簡約</button>
+                        <button class="preset-btn" data-preset="tech">科技感</button>
+                    </div>
+                </section>
+
                 <section class="edit-section">
                     <h2>基本資訊</h2>
                     
@@ -62,29 +73,40 @@
                     <div class="form-group">
                         <label>常見比例</label>
                         <div class="ratio-presets">
-                            <button class="ratio-btn active" data-w="10" data-h="3">10:3<span class="ratio-hint">標準名牌</span></button>
+                            <button class="ratio-btn" data-w="10" data-h="3">10:3<span class="ratio-hint">標準名牌</span></button>
                             <button class="ratio-btn" data-w="2" data-h="1">2:1</button>
                             <button class="ratio-btn" data-w="16" data-h="9">16:9</button>
                             <button class="ratio-btn" data-w="16" data-h="10">16:10</button>
                             <button class="ratio-btn" data-w="4" data-h="3">4:3</button>
                             <button class="ratio-btn" data-w="3" data-h="2">3:2</button>
                             <button class="ratio-btn" data-w="1" data-h="1">1:1</button>
-                            <button class="ratio-btn" data-w="2" data-h="1" data-canvas-width="800" data-canvas-height="400">會議桌牌<span class="ratio-hint">800×400</span></button>
+                            <button class="ratio-btn active" data-w="5" data-h="3" data-canvas-width="800" data-canvas-height="480">會議桌牌<span class="ratio-hint">800×480</span></button>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label>自訂比例</label>
                         <div class="custom-ratio-group">
-                            <input type="number" id="customRatioW" min="1" max="100" value="10" class="ratio-number-input">
+                            <input type="number" id="customRatioW" min="1" max="100" value="5" class="ratio-number-input">
                             <span class="ratio-colon">:</span>
                             <input type="number" id="customRatioH" min="1" max="100" value="3" class="ratio-number-input">
                             <button id="applyCustomRatioBtn" class="btn btn-secondary">套用</button>
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>自訂尺寸 (px)</label>
+                        <div class="custom-ratio-group">
+                            <input type="number" id="customCanvasWidth" min="100" max="5000" value="800" class="ratio-number-input" aria-label="畫布寬度(px)">
+                            <span class="ratio-colon">×</span>
+                            <input type="number" id="customCanvasHeight" min="100" max="5000" value="480" class="ratio-number-input" aria-label="畫布高度(px)">
+                            <button id="applyCustomCanvasSizeBtn" class="btn btn-secondary">套用</button>
+                        </div>
+                    </div>
+
                     <div class="form-group hint">
-                        <p id="canvasSizeInfo">目前尺寸: 1000×300 px</p>
+                        <p id="canvasSizeInfo">目前尺寸: 800×480 px</p>
+                        <p>使用 Philips 會議桌牌時，建議尺寸為 800×480 px。</p>
                     </div>
                 </section>
 
@@ -144,10 +166,10 @@
                                 type="range" 
                                 id="nameFontSize" 
                                 min="24" 
-                                max="120" 
-                                value="48"
+                                max="220" 
+                                value="120"
                             >
-                            <span id="nameFontSizeValue">48px</span>
+                            <span id="nameFontSizeValue">120px</span>
                         </div>
                     </div>
 
@@ -159,9 +181,9 @@
                                 id="companyFontSize" 
                                 min="16" 
                                 max="100" 
-                                value="24"
+                                value="50"
                             >
-                            <span id="companyFontSizeValue">24px</span>
+                            <span id="companyFontSizeValue">50px</span>
                         </div>
                     </div>
 
@@ -173,9 +195,9 @@
                                 id="positionFontSize" 
                                 min="16" 
                                 max="100" 
-                                value="24"
+                                value="50"
                             >
-                            <span id="positionFontSizeValue">24px</span>
+                            <span id="positionFontSizeValue">50px</span>
                         </div>
                     </div>
 
@@ -397,9 +419,14 @@
                         <div class="image-preview" id="qrPreview">
                             <span>未設定 QRCode</span>
                         </div>
-                        <button id="clearQrBtn" class="btn btn-secondary" style="display: none; margin-top: 8px;">
-                            清除 QRCode
-                        </button>
+                        <div class="qr-action-row">
+                            <button id="toggleQrBtn" class="btn btn-secondary" type="button" style="margin-top: 8px;">
+                                隱藏 QRCode
+                            </button>
+                            <button id="clearQrBtn" class="btn btn-secondary" type="button" style="display: none; margin-top: 8px;">
+                                清除 QRCode
+                            </button>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -427,16 +454,16 @@
                                         id="qrcodeOffsetX"
                                         min="-450"
                                         max="450"
-                                        value="320"
+                                        value="-280"
                                     >
-                                    <span id="qrcodeOffsetXValue">320px</span>
+                                    <span id="qrcodeOffsetXValue">-280px</span>
                                 </div>
                                 <input
                                     type="number"
                                     id="qrcodeOffsetXInput"
                                     min="-450"
                                     max="450"
-                                    value="320"
+                                    value="-280"
                                     class="offset-number-input"
                                 >
                                 <button class="btn-center" id="qrcodeXCenterBtn" title="置中">置中</button>
@@ -470,7 +497,7 @@
                 </section>
 
                 <section class="edit-section batch-section">
-                    <h2>批量產牌</h2>
+                    <h2>批量輸出桌牌圖片（進階）</h2>
 
                     <div class="form-group">
                         <label for="batchCsvInput">匯入 CSV 名單</label>
@@ -480,7 +507,7 @@
                             accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                             class="file-input"
                         >
-                        <p class="batch-helper-text">支援 CSV / XLSX / XLS。欄位至少需包含 name、company、position；可選填 qrUrl 來為每筆資料產生 QRCode。</p>
+                        <p class="batch-helper-text">支援 CSV / XLSX / XLS。欄位至少需包含 name、company、position；可選填 deviceTarget（桌牌名稱或 IP）、qrUrl 來為每筆資料產生 QRCode。匯入後可直接在預覽表格內修改資料，即使沒填桌牌資訊，仍會正常輸出圖片檔。</p>
                     </div>
 
                     <div class="batch-toolbar">
@@ -498,13 +525,15 @@
                                     <th>姓名</th>
                                     <th>公司</th>
                                     <th>職位</th>
+                                    <th>桌牌</th>
+                                    <th>QR 網址</th>
                                     <th>狀態</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody id="batchPreviewBody">
                                 <tr>
-                                    <td colspan="6" class="batch-empty-state">匯入 CSV 後會在這裡顯示預覽</td>
+                                    <td colspan="8" class="batch-empty-state">匯入 CSV 後會在這裡顯示預覽</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -596,7 +625,7 @@
 
                     <div id="deviceControlsPanel" class="device-controls" hidden>
                         <div class="device-panel-grid">
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="imageHostUrlInput">名牌圖片公開網址</label>
                                 <input
                                     type="url"
@@ -605,7 +634,7 @@
                                 >
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="displayCallbackUrlInput">換圖回報路徑</label>
                                 <input
                                     type="text"
@@ -624,7 +653,7 @@
                                 </div>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="serverAddrInput">Webhook Server 位址</label>
                                 <input
                                     type="text"
@@ -634,7 +663,7 @@
                                 <small>若名牌可直接連到此網站，通常可留空讓後端自動帶入</small>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="serverPortInput">Webhook Server Port</label>
                                 <input
                                     type="number"
@@ -645,7 +674,7 @@
                                 >
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="heartbeatUrlInput">Heartbeat 路徑</label>
                                 <input
                                     type="text"
@@ -656,7 +685,7 @@
                                 <small>支援相對路徑，後端會自動補成完整網址</small>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="heartbeatMinutesInput">Heartbeat 分鐘</label>
                                 <input
                                     type="number"
@@ -667,7 +696,7 @@
                                 >
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="otaUrlInput">OTA 韌體網址</label>
                                 <input
                                     type="url"
@@ -677,7 +706,7 @@
                                 <small>若填相對路徑，後端也會改寫成公開網址</small>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" hidden>
                                 <label for="networkModeSelect">IP 模式</label>
                                 <select id="networkModeSelect">
                                     <option value="dhcp">dhcp</option>
@@ -710,7 +739,7 @@
                         </div>
 
                         <div class="api-action-groups">
-                            <div class="api-action-group">
+                            <div class="api-action-group" hidden>
                                 <h3>畫面更新</h3>
                                 <div class="api-action-buttons two-column">
                                     <button id="pushImageABtn" class="btn btn-primary" type="button">更新左側畫面 A</button>
@@ -720,7 +749,7 @@
                                 </div>
                             </div>
 
-                            <div class="api-action-group">
+                            <div class="api-action-group" hidden>
                                 <h3>伺服器與心跳</h3>
                                 <div class="api-action-buttons two-column">
                                     <button id="setServerBtn" class="btn btn-secondary" type="button">設定伺服器位址</button>
@@ -732,15 +761,15 @@
                             <div class="api-action-group">
                                 <h3>系統資訊與管理</h3>
                                 <div class="api-action-buttons two-column">
-                                    <button id="aboutBtn" class="btn btn-secondary" type="button">取得裝置資訊</button>
-                                    <button id="viewCallbacksBtn" class="btn btn-secondary" type="button">查看 Callback 紀錄</button>
-                                    <button id="viewImageAccessLogBtn" class="btn btn-secondary" type="button">查看圖片抓取紀錄</button>
+                                    <button id="aboutBtn" class="btn btn-secondary" type="button" hidden>取得裝置資訊</button>
+                                    <button id="viewCallbacksBtn" class="btn btn-secondary" type="button" hidden>查看 Callback 紀錄</button>
+                                    <button id="viewImageAccessLogBtn" class="btn btn-secondary" type="button" hidden>查看圖片抓取紀錄</button>
                                     <button id="resetDeviceBtn" class="btn btn-secondary" type="button">重啟裝置</button>
                                     <button id="factoryResetBtn" class="btn btn-secondary" type="button">恢復出廠設定</button>
                                 </div>
                             </div>
 
-                            <div class="api-action-group">
+                            <div class="api-action-group" hidden>
                                 <h3>網路與更新</h3>
                                 <div class="api-action-buttons two-column">
                                     <button id="changeIpBtn" class="btn btn-secondary" type="button">修改 IP 設定</button>
@@ -757,18 +786,28 @@
                     </div>
                 </section>
 
-                <!-- 快速預設 -->
-                <section class="edit-section presets presets-in-editor">
-                    <h3>快速預設</h3>
-                    <div class="preset-buttons">
-                        <button class="preset-btn" data-preset="corporate">企業風格</button>
-                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
-                        <button class="preset-btn" data-preset="modern">現代簡約</button>
-                        <button class="preset-btn" data-preset="tech">科技感</button>
-                    </div>
-                </section>
-
                 <section class="action-section">
+                    <div class="upload-direct-block">
+                        <div class="form-group">
+                            <label for="directImageUploadInput">直接上傳圖片更新桌牌雙面</label>
+                            <input
+                                type="file"
+                                id="directImageUploadInput"
+                                accept="image/*"
+                                class="file-input"
+                            >
+                            <div class="image-preview" id="directImagePreview">
+                                <span>未選擇圖片</span>
+                            </div>
+                            <small>圖片會自動轉成 800×480 的 baseline JPG，並同步更新到 A/B 兩面。</small>
+                        </div>
+                        <button id="uploadImageToBothBtn" class="btn btn-primary" type="button">
+                            上傳圖片並同步更新雙面
+                        </button>
+                    </div>
+                    <button id="pushImageBothBtn" class="btn btn-primary" type="button">
+                        同步更新雙面
+                    </button>
                     <button id="downloadBtn" class="btn btn-primary">
                         ⬇️ 下載為 PNG
                     </button>
@@ -784,13 +823,15 @@
                     <div class="canvas-wrapper">
                         <canvas 
                             id="nameplate" 
-                            width="1000" 
-                            height="300"
+                            width="800" 
+                            height="480"
                         ></canvas>
                     </div>
                     <div class="preview-info">
-                        <p id="previewSizeInfo">預覽尺寸: 1000×300 px</p>
+                        <p id="previewSizeInfo">預覽尺寸: 800×480 px</p>
                         <p class="hint">💡 實時預覽 - 編輯內容時自動更新</p>
+                        <p class="hint">可直接拖曳物件來調整位置。</p>
+                        <p class="hint">可使用 ctrl + z 來返回上一步。</p>
                     </div>
                 </div>
             </main>
@@ -810,6 +851,16 @@
                 <div>
                     <strong>Webhook Server</strong>
                     <p id="footerWebhookEndpoint">-</p>
+                </div>
+            </div>
+
+            <div class="discovered-device-section">
+                <div class="discovered-device-header">
+                    <strong>已找到的桌牌</strong>
+                    <span id="discoveredDeviceCount" class="discovered-device-count">0 台</span>
+                </div>
+                <div id="discoveredDeviceList" class="discovered-device-list">
+                    <div class="discovered-device-empty">目前尚未掃描到桌牌</div>
                 </div>
             </div>
         </footer>
