@@ -32,7 +32,7 @@
                     </div>
                 </section>
 
-                <section class="edit-section">
+                <section class="edit-section" hidden>
                     <h2>基本資訊</h2>
                     
                     <div class="form-group">
@@ -156,10 +156,10 @@
                     </div>
                 </section>
 
-                <section class="edit-section">
+                <section class="edit-section" hidden>
                     <h2>文字樣式</h2>
                     
-                    <div class="form-group">
+                    <div class="form-group" hidden>
                         <label for="nameFontSize">姓名文字大小</label>
                         <div class="slider-control">
                             <input 
@@ -173,7 +173,7 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" hidden>
                         <label for="companyFontSize">公司/部門文字大小</label>
                         <div class="slider-control">
                             <input 
@@ -187,7 +187,7 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" hidden>
                         <label for="positionFontSize">職稱文字大小</label>
                         <div class="slider-control">
                             <input 
@@ -223,7 +223,7 @@
                     </div>
                 </section>
 
-                <section class="edit-section">
+                <section class="edit-section" hidden>
                     <h2>文字位置調整</h2>
                     
                     <div class="position-controls">
@@ -389,7 +389,7 @@
                     </div>
                 </section>
 
-                <section class="edit-section">
+                <section class="edit-section" hidden>
                     <h2>QRCode</h2>
 
                     <div class="form-group">
@@ -494,6 +494,119 @@
                             </div>
                         </div>
                     </div>
+                </section>
+
+                <section class="edit-section object-manager-section">
+                    <h2>圖片內容管理</h2>
+
+                    <div class="object-manager-toolbar" hidden>
+                        <button id="deleteSelectedObjectBtn" class="btn btn-secondary" type="button">刪除目前選取物件</button>
+                    </div>
+
+                    <div class="object-manager-list" id="objectManagerList"></div>
+                    <div class="object-settings-panel" id="objectSettingsPanel" hidden>
+                        <h3 id="objectSettingsTitle">物件設定</h3>
+
+                        <div class="form-group">
+                            <label for="objectVisibleToggle">顯示此物件</label>
+                            <input type="checkbox" id="objectVisibleToggle" checked>
+                        </div>
+
+                        <div class="form-group" id="objectEditTextGroup" hidden>
+                            <label for="objectEditTextInput">文字內容</label>
+                            <input type="text" id="objectEditTextInput" maxlength="40" placeholder="輸入文字內容">
+                        </div>
+
+                        <div class="form-group" id="objectEditQrGroup" hidden>
+                            <label for="objectEditQrUrlInput">QRCode 網址</label>
+                            <div class="custom-ratio-group">
+                                <input type="url" id="objectEditQrUrlInput" placeholder="https://example.com">
+                                <button id="applyObjectQrUrlBtn" class="btn btn-secondary" type="button">更新 QRCode</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditQrSizeGroup" hidden>
+                            <label for="objectEditQrSize">QRCode 大小</label>
+                            <div class="slider-control">
+                                <input type="range" id="objectEditQrSize" min="40" max="260" value="100">
+                                <span id="objectEditQrSizeValue">100px</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditImageWidthGroup" hidden>
+                            <label for="objectEditImageWidth">小圖片寬度</label>
+                            <div class="slider-control">
+                                <input type="range" id="objectEditImageWidth" min="20" max="600" value="120">
+                                <span id="objectEditImageWidthValue">120px</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditImageHeightGroup" hidden>
+                            <label for="objectEditImageHeight">小圖片高度</label>
+                            <div class="slider-control">
+                                <input type="range" id="objectEditImageHeight" min="20" max="600" value="120">
+                                <span id="objectEditImageHeightValue">120px</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditImageLockGroup" hidden>
+                            <label for="objectEditImageLockRatio">固定比例（調整寬高時互相同步）</label>
+                            <input type="checkbox" id="objectEditImageLockRatio">
+                        </div>
+
+                        <div class="form-group" id="objectEditFontSizeGroup" hidden>
+                            <label for="objectEditFontSize">文字大小</label>
+                            <div class="slider-control">
+                                <input type="range" id="objectEditFontSize" min="16" max="220" value="48">
+                                <span id="objectEditFontSizeValue">48px</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditColorGroup" hidden>
+                            <label for="objectEditColorInput">文字顏色</label>
+                            <div class="color-selector">
+                                <input type="color" id="objectEditColorInput" value="#000000">
+                                <span id="objectEditColorValue">#000000</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="objectEditShadowGroup" hidden>
+                            <label for="objectEditShadowInput">文字陰影</label>
+                            <input type="checkbox" id="objectEditShadowInput">
+                        </div>
+                    </div>
+
+                    <div class="object-manager-divider" aria-hidden="true"></div>
+
+                    <div class="object-manager-create">
+                        <h3>新增物件</h3>
+
+                        <div class="form-group">
+                            <label for="objectTextInput">新增文字方塊</label>
+                            <div class="custom-ratio-group">
+                                <input type="text" id="objectTextInput" placeholder="輸入文字內容">
+                                <button id="addTextObjectBtn" class="btn btn-secondary" type="button">新增文字</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="objectQrUrlInput">新增 QRCode 物件</label>
+                            <div class="custom-ratio-group">
+                                <input type="url" id="objectQrUrlInput" placeholder="https://example.com">
+                                <button id="addQrObjectBtn" class="btn btn-secondary" type="button">新增 QRCode</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="objectImageFileInput">新增小圖片物件</label>
+                            <div class="custom-ratio-group">
+                                <input type="file" id="objectImageFileInput" accept="image/*" class="file-input">
+                                <button id="addImageObjectBtn" class="btn btn-secondary" type="button">新增小圖片</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
                 </section>
 
                 <section class="edit-section batch-section">

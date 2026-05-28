@@ -16,17 +16,6 @@
 - 支援文字顏色、陰影
 - 支援拖曳文字位置與 QRCode 位置
 - 支援 QRCode 圖片上傳與網址即時產生
-- 支援多種畫布比例，預設為 `10:3`，寬度固定 `1000px`
-- 支援 LocalStorage 自動保存設定
-- 支援深色模式
-- 支援匯出 PNG
-- 支援批量匯入 CSV / XLSX / XLS、批量 ZIP 匯出與結果報表
-- 已在左側加入 Philips 桌牌選擇與控制面板，可直接指定桌牌並呼叫對應 API
-
-### 目前不是正式後端整合
-- 已可用同一個 Node.js / Express 服務同時提供前端頁面、圖片託管、Philips webhook 與區網裝置掃描
-- `api-example.js` 目前仍偏 demo / local deployment 形式，尚未補上正式 production 所需的認證、日誌、權限與佇列管理
-- Philips 裝置 discovery 採用同網段 `/24` 探測與 `GET /api/tableside/v1/about` 回應判定，適合區網內部使用，但不是官方 device registry
 
 ## 專案結構
 
@@ -55,26 +44,9 @@ namePlate_web/
 - `js/app.js`: 表單事件、狀態管理、LocalStorage、桌牌清單、Philips API 呼叫、深色模式、比例調整
 - `js/renderer.js`: Canvas 繪製、背景圖、文字、QRCode、匯出 Base64 / PNG
 - `js/vendor/`: 本地第三方函式庫，包含 QRCode、JSZip、SheetJS XLSX
-- `api-example.js`: 整合式本機 server，提供前端頁面、圖片公開 URL、Philips webhook 與區網裝置掃描 API
-- `package.json`: 單機啟動用的 Node.js 依賴與 script
-- `batch-test.csv`: 批量產牌測試資料
-
-## 快速使用
-
-### 建議方式
-先安裝依賴並啟動整合式 server：
 
 ```bash
 npm install
-npm start
-```
-
-啟動後打開 `http://localhost:3001`。
-
-如果你想在電腦上直接一鍵啟動，可使用專案根目錄內的腳本：
-
-Windows:
-
 ```bat
 start-nameplate.bat
 ```
@@ -87,12 +59,9 @@ chmod +x start-nameplate.sh
 ```
 
 這兩個腳本會自動檢查 `node` / `npm`、必要時執行 `npm install`、啟動本機整合式 server，並開啟瀏覽器到可用的本機網址。
-
 如果 `3001` 已被占用，腳本會自動往上尋找下一個可用 port，例如 `3002`、`3003`。如果你有先設定 `PORT` 環境變數，腳本會從你指定的 port 開始往上找。
 
 若要讓同網段其他裝置連進來，可直接打開：
-
-```text
 http://你的電腦區網IP:3001
 ```
 
@@ -111,10 +80,6 @@ python -m http.server 8000
 或：
 
 ```bash
-npx http-server
-```
-
-啟動後打開 `http://localhost:8000`。
 
 ## 對外網開放
 
@@ -122,23 +87,12 @@ npx http-server
 
 - 前端頁面 `/`
 - 圖片上傳 `/api/nameplate/upload`
-- 上傳圖片公開網址 `/uploads/...`
-- Philips callback `/heartbeat`、`/image-post`、`/ota-post`
-
 ### 先判斷你的需求
 
 #### 需求 A：只要讓別人從外網打開編輯器
-可以部署到任何可公開存取的 Node.js 主機，例如：
-
 - 雲端 VM / VPS
 - 公司對外主機
 - Docker 容器平台
-
-#### 需求 B：外網也要能操作現場 Philips 桌牌
-這要額外注意：
-
-- `/api/philips/discover` 目前是掃描 server 所在機器的私有 IPv4 `/24` 子網
-- 也就是說，只有當 server 本身跟桌牌在同一個區網時，自動掃描才有意義
 - 如果網站部署在公有雲，通常掃不到你辦公室或會場內的桌牌
 - 這種情況建議保留「公開網站 + 區網內中介 server」兩層架構
 

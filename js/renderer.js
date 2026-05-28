@@ -8,6 +8,7 @@ class NameplateRenderer {
         this.bgImage = null;
         this.qrImage = null;
         this.bgImageOpacity = 1;
+        this.objectImageCache = new Map();
     }
 
     /**
@@ -111,11 +112,8 @@ class NameplateRenderer {
             this.drawBackgroundImage();
         }
 
-        // 繪製文字
-        this.drawText(state);
-
-        // 繪製 QRCode
-        this.drawQrCode(state);
+        // 依物件順序繪製（後面的物件會覆蓋前面的物件）
+        this.drawObjectsByOrder(state);
 
         // 繪製邊框
         this.drawBorder();
@@ -138,6 +136,217 @@ class NameplateRenderer {
             right: centerX + size / 2,
             bottom: centerY + size / 2
         };
+    }
+
+    isDefaultObjectVisible(state, objectId) {
+        if (!state || !state.objectVisibility) {
+            return true;
+        }
+
+        return state.objectVisibility[objectId] !== false;
+    }
+
+    getCustomObjects(state) {
+        if (!state || !Array.isArray(state.customObjects)) {
+            return [];
+        }
+
+        return state.customObjects.filter(item => item && item.id && item.visible !== false);
+    }
+
+    getOrderedRenderableObjects(state) {
+        const customObjects = Array.isArray(state?.customObjects) ? state.customObjects : [];
+        const customMap = new Map(customObjects.filter(item => item && item.id).map(item => [item.id, item]));
+        const knownIds = ['default-name', 'default-company', 'default-position', 'default-qrcode', ...customMap.keys()];
+        const baseOrder = Array.isArray(state?.objectOrder) ? state.objectOrder : [];
+        const order = [];
+
+        baseOrder.forEach(id => {
+            if (knownIds.includes(id) && !order.includes(id)) {
+                order.push(id);
+            }
+        });
+
+        knownIds.forEach(id => {
+            if (!order.includes(id)) {
+                order.push(id);
+            }
+        });
+
+        return order.map(id => {
+            if (id === 'default-name') {
+                return {
+                    id,
+                    kind: 'default-text',
+                    token: 'name',
+                    text: state.name,
+                    fontSize: state.nameFontSize || state.fontSize || 120,
+                    textShadow: state.nameTextShadow == null ? Boolean(state.textShadow) : Boolean(state.nameTextShadow),
+                    offsetX: state.nameOffsetX || 0,
+                    offsetY: state.nameOffsetY || 0,
+                    visible: this.isDefaultObjectVisible(state, id)
+                };
+            }
+
+            if (id === 'default-company') {
+                const nameFontSize = state.nameFontSize || state.fontSize || 120;
+                return {
+                    id,
+                    kind: 'default-text',
+                    token: 'company',
+                    text: state.company,
+                    fontSize: state.companyFontSize || Math.max(24, Math.round(nameFontSize * 0.42)),
+                    textShadow: state.companyTextShadow == null ? Boolean(state.textShadow) : Boolean(state.companyTextShadow),
+                    offsetX: state.companyOffsetX || 0,
+                    offsetY: state.companyOffsetY || 0,
+                    visible: this.isDefaultObjectVisible(state, id)
+                };
+            }
+
+            if (id === 'default-position') {
+                const nameFontSize = state.nameFontSize || state.fontSize || 120;
+                return {
+                    id,
+                    kind: 'default-text',
+                    token: 'position',
+                    text: state.position,
+                    fontSize: state.positionFontSize || Math.max(24, Math.round(nameFontSize * 0.42)),
+                    textShadow: state.positionTextShadow == null ? Boolean(state.textShadow) : Boolean(state.positionTextShadow),
+                    offsetX: state.positionOffsetX || 0,
+                    offsetY: state.positionOffsetY || 0,
+                    visible: this.isDefaultObjectVisible(state, id)
+                };
+            }
+
+            if (id === 'default-qrcode') {
+                return {
+                    id,
+                    kind: 'default-qr',
+                    token: 'qrcode',
+                    size: state.qrSize || 100,
+                    offsetX: state.qrcodeOffsetX || 0,
+                    offsetY: state.qrcodeOffsetY || 0,
+                    visible: state.qrVisible !== false && this.isDefaultObjectVisible(state, id)
+                };
+            }
+
+            const custom = customMap.get(id);
+            if (!custom) {
+                return null;
+            }
+
+            return {
+                ...custom,
+                id,
+                kind: 'custom',
+                token: `object:${id}`,
+                visible: custom.visible !== false
+            };
+        }).filter(Boolean);
+    }
+
+    getDefaultTextBaseY(token, state) {
+        const centerY = this.canvas.height / 2;
+        const nameFontSize = state.nameFontSize || state.fontSize || 120;
+        const verticalGap = Math.max(Math.round(this.canvas.height * 0.23), Math.round(nameFontSize * 0.95));
+
+        if (token === 'company') return centerY - verticalGap;
+        if (token === 'position') return centerY + verticalGap;
+        return centerY;
+    }
+
+    getObjectMetrics(item, state) {
+        const centerX = this.canvas.width / 2;
+
+        if (item.kind === 'default-text') {
+            const x = centerX + parseInt(item.offsetX || 0, 10);
+            const y = this.getDefaultTextBaseY(item.token, state) + parseInt(item.offsetY || 0, 10);
+            const fontWeight = item.token === 'name' ? 'bold ' : '';
+            this.ctx.font = `${fontWeight}${item.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            const text = String(item.text || '');
+            const width = this.ctx.measureText(text).width;
+            const height = item.fontSize;
+            return { x, y, width, height, text };
+        }
+
+        if (item.kind === 'default-qr') {
+            const x = centerX + parseInt(item.offsetX || 0, 10);
+            const y = this.canvas.height / 2 + parseInt(item.offsetY || 0, 10);
+            const size = parseInt(item.size || 100, 10);
+            return { x, y, width: size, height: size, size };
+        }
+
+        const x = centerX + parseInt(item.offsetX || 0, 10);
+        const y = this.canvas.height / 2 + parseInt(item.offsetY || 0, 10);
+
+        if (item.type === 'text') {
+            const fontSize = parseInt(item.fontSize || 42, 10);
+            this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            const text = String(item.text || '新文字');
+            return { x, y, width: this.ctx.measureText(text).width, height: fontSize, text, fontSize };
+        }
+
+        if (item.type === 'qr') {
+            const size = parseInt(item.size || 100, 10);
+            return { x, y, width: size, height: size, size };
+        }
+
+        const width = parseInt(item.width || 120, 10);
+        const height = parseInt(item.height || 120, 10);
+        return { x, y, width, height };
+    }
+
+    drawObjectsByOrder(state) {
+        const objects = this.getOrderedRenderableObjects(state);
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+
+        objects.forEach(item => {
+            if (!item.visible) {
+                return;
+            }
+
+            const metrics = this.getObjectMetrics(item, state);
+
+            if (item.kind === 'default-text') {
+                const fontWeight = item.token === 'name' ? 'bold ' : '';
+                this.ctx.font = `${fontWeight}${item.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.drawTextWithShadow(String(metrics.text || ''), metrics.x, metrics.y, Boolean(item.textShadow), state.textColor || '#000000');
+                return;
+            }
+
+            if (item.kind === 'default-qr') {
+                if (!this.qrImage) {
+                    return;
+                }
+
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(metrics.x - metrics.size / 2 - 4, metrics.y - metrics.size / 2 - 4, metrics.size + 8, metrics.size + 8);
+                this.ctx.drawImage(this.qrImage, metrics.x - metrics.size / 2, metrics.y - metrics.size / 2, metrics.size, metrics.size);
+                return;
+            }
+
+            if (item.type === 'text') {
+                const fontSize = parseInt(item.fontSize || 42, 10);
+                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.drawTextWithShadow(String(metrics.text || '新文字'), metrics.x, metrics.y, Boolean(item.textShadow), item.color || state.textColor || '#000000');
+                return;
+            }
+
+            const image = this.getCachedObjectImage(item.id, item.dataUrl);
+            if (!image) {
+                return;
+            }
+
+            if (item.type === 'qr') {
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(metrics.x - metrics.size / 2 - 4, metrics.y - metrics.size / 2 - 4, metrics.size + 8, metrics.size + 8);
+                this.ctx.drawImage(image, metrics.x - metrics.size / 2, metrics.y - metrics.size / 2, metrics.size, metrics.size);
+                return;
+            }
+
+            this.ctx.drawImage(image, metrics.x - metrics.width / 2, metrics.y - metrics.height / 2, metrics.width, metrics.height);
+        });
     }
 
     /**
@@ -167,7 +376,7 @@ class NameplateRenderer {
         const positionBaseY = centerY + verticalGap;
         const positions = [];
 
-        if (company && company.length > 0) {
+        if (company && company.length > 0 && this.isDefaultObjectVisible(state, 'default-company')) {
             positions.push({
                 type: 'company',
                 text: company,
@@ -181,19 +390,21 @@ class NameplateRenderer {
             });
         }
 
-        positions.push({
-            type: 'name',
-            text: name,
-            x: centerX + nameOffsetX,
-            y: nameBaseY + nameOffsetY,
-            baseX: centerX,
-            baseY: nameBaseY,
-            fontSize: nameFontSize,
-            width: 150,
-            height: nameFontSize
-        });
+        if (this.isDefaultObjectVisible(state, 'default-name')) {
+            positions.push({
+                type: 'name',
+                text: name,
+                x: centerX + nameOffsetX,
+                y: nameBaseY + nameOffsetY,
+                baseX: centerX,
+                baseY: nameBaseY,
+                fontSize: nameFontSize,
+                width: 150,
+                height: nameFontSize
+            });
+        }
 
-        if (position && position.length > 0) {
+        if (position && position.length > 0 && this.isDefaultObjectVisible(state, 'default-position')) {
             positions.push({
                 type: 'position',
                 text: position,
@@ -256,33 +467,29 @@ class NameplateRenderer {
      * 檢查點是否在文字元素內
      */
     getTextAtPoint(x, y) {
-        if (this.qrImage && window.nameplateState.qrVisible !== false) {
-            const qr = this.getQrCodeRect(window.nameplateState);
-            if (x >= qr.left && x <= qr.right && y >= qr.top && y <= qr.bottom) {
-                return 'qrcode';
-            }
-        }
+        const objects = this.getOrderedRenderableObjects(window.nameplateState);
 
-        const positions = this.getTextPositions(window.nameplateState);
-        
-        for (let pos of positions) {
-            // 設定正確的字體以計算文字寬度
-            this.ctx.font = `bold ${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
-            if (pos.type === 'company' || pos.type === 'position') {
-                this.ctx.font = `${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+        for (let index = objects.length - 1; index >= 0; index -= 1) {
+            const item = objects[index];
+            if (!item.visible) {
+                continue;
             }
-            
-            const textWidth = this.ctx.measureText(pos.text).width;
-            const left = pos.x - textWidth / 2;
-            const right = pos.x + textWidth / 2;
-            const top = pos.y - pos.height / 2;
-            const bottom = pos.y + pos.height / 2;
+
+            if (item.kind === 'default-qr' && !this.qrImage) {
+                continue;
+            }
+
+            const metrics = this.getObjectMetrics(item, window.nameplateState);
+            const left = metrics.x - metrics.width / 2;
+            const right = metrics.x + metrics.width / 2;
+            const top = metrics.y - metrics.height / 2;
+            const bottom = metrics.y + metrics.height / 2;
 
             if (x >= left && x <= right && y >= top && y <= bottom) {
-                return pos.type;
+                return item.token;
             }
         }
-        
+
         return null;
     }
 
@@ -330,13 +537,129 @@ class NameplateRenderer {
      * 繪製 QRCode
      */
     drawQrCode(state) {
-        if (!this.qrImage || state.qrVisible === false) return;
+        if (!this.qrImage || state.qrVisible === false || !this.isDefaultObjectVisible(state, 'default-qrcode')) return;
 
         const qr = this.getQrCodeRect(state);
 
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(qr.left - 4, qr.top - 4, qr.size + 8, qr.size + 8);
         this.ctx.drawImage(this.qrImage, qr.left, qr.top, qr.size, qr.size);
+    }
+
+    getCachedObjectImage(objectId, dataUrl) {
+        if (!objectId || !dataUrl) {
+            return null;
+        }
+
+        const cached = this.objectImageCache.get(objectId);
+        if (cached && cached.src === dataUrl && cached.img.complete) {
+            return cached.img;
+        }
+
+        const img = new Image();
+        img.onload = () => this.render(window.nameplateState);
+        img.src = dataUrl;
+        this.objectImageCache.set(objectId, { src: dataUrl, img });
+        return img.complete ? img : null;
+    }
+
+    drawCustomObjects(state) {
+        const customObjects = this.getCustomObjects(state);
+        if (!customObjects.length) {
+            return;
+        }
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        customObjects.forEach(objectMeta => {
+            const x = centerX + parseInt(objectMeta.offsetX || 0, 10);
+            const y = centerY + parseInt(objectMeta.offsetY || 0, 10);
+
+            if (objectMeta.type === 'text') {
+                const fontSize = parseInt(objectMeta.fontSize || 42, 10);
+                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.drawTextWithShadow(
+                    String(objectMeta.text || '新文字'),
+                    x,
+                    y,
+                    Boolean(objectMeta.textShadow),
+                    objectMeta.color || state.textColor || '#000000'
+                );
+                return;
+            }
+
+            if (objectMeta.type === 'qr') {
+                const size = parseInt(objectMeta.size || 100, 10);
+                const qrImage = this.getCachedObjectImage(objectMeta.id, objectMeta.dataUrl);
+                if (!qrImage) {
+                    return;
+                }
+
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(x - size / 2 - 4, y - size / 2 - 4, size + 8, size + 8);
+                this.ctx.drawImage(qrImage, x - size / 2, y - size / 2, size, size);
+                return;
+            }
+
+            if (objectMeta.type === 'image') {
+                const width = parseInt(objectMeta.width || 120, 10);
+                const height = parseInt(objectMeta.height || 120, 10);
+                const image = this.getCachedObjectImage(objectMeta.id, objectMeta.dataUrl);
+                if (!image) {
+                    return;
+                }
+
+                this.ctx.drawImage(image, x - width / 2, y - height / 2, width, height);
+            }
+        });
+    }
+
+    getCustomObjectAtPoint(state, x, y) {
+        const customObjects = this.getCustomObjects(state);
+        if (!customObjects.length) {
+            return null;
+        }
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        for (let index = customObjects.length - 1; index >= 0; index -= 1) {
+            const objectMeta = customObjects[index];
+            const objX = centerX + parseInt(objectMeta.offsetX || 0, 10);
+            const objY = centerY + parseInt(objectMeta.offsetY || 0, 10);
+
+            if (objectMeta.type === 'text') {
+                const fontSize = parseInt(objectMeta.fontSize || 42, 10);
+                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                const text = String(objectMeta.text || '新文字');
+                const textWidth = this.ctx.measureText(text).width;
+                const left = objX - textWidth / 2;
+                const right = objX + textWidth / 2;
+                const top = objY - fontSize / 2;
+                const bottom = objY + fontSize / 2;
+
+                if (x >= left && x <= right && y >= top && y <= bottom) {
+                    return objectMeta.id;
+                }
+                continue;
+            }
+
+            const width = parseInt(objectMeta.type === 'qr' ? (objectMeta.size || 100) : (objectMeta.width || 120), 10);
+            const height = parseInt(objectMeta.type === 'qr' ? (objectMeta.size || 100) : (objectMeta.height || 120), 10);
+            const left = objX - width / 2;
+            const right = objX + width / 2;
+            const top = objY - height / 2;
+            const bottom = objY + height / 2;
+
+            if (x >= left && x <= right && y >= top && y <= bottom) {
+                return objectMeta.id;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -379,6 +702,9 @@ window.nameplateState = {
     positionFontSize: 50,
     textColor: '#ffffff',
     textShadow: false,
+    nameTextShadow: false,
+    companyTextShadow: false,
+    positionTextShadow: false,
     // 分別的位置偏移 (預設值)
     nameOffsetX: 0,
     nameOffsetY: 0,
@@ -389,7 +715,15 @@ window.nameplateState = {
     qrcodeOffsetX: -280,
     qrcodeOffsetY: 0,
     qrSize: 100,
-    qrVisible: true
+    qrVisible: true,
+    objectVisibility: {
+        'default-name': true,
+        'default-company': true,
+        'default-position': true,
+        'default-qrcode': true
+    },
+    objectOrder: ['default-name', 'default-company', 'default-position', 'default-qrcode'],
+    customObjects: []
 };
 
 /**

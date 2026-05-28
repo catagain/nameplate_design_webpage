@@ -19,6 +19,8 @@ let qrCodeDataUrl = null;
 let qrCodeLibLoadingPromise = null;
 const DEFAULT_QR_SAMPLE_URL = 'https://github.com/catagain/nameplate_design_webpage';
 let batchJobState = createEmptyBatchJobState();
+let preferredPasteImageTarget = 'background';
+let directUploadImageFile = null;
 
 const BATCH_REQUIRED_COLUMNS = ['name', 'company', 'position'];
 const BATCH_OPTIONAL_COLUMNS = ['deviceTarget', 'deviceId', 'meetingId', 'qrUrl'];
@@ -32,16 +34,703 @@ const DEVICE_DISCOVERY_REFRESH_MS = 30000;
 const DISCOVERED_HEARTBEAT_SYNC_RETRY_MS = 10 * 60 * 1000;
 const DUAL_DISPLAY_UPDATE_DELAY_MS = 350;
 const UNDO_HISTORY_LIMIT = 80;
+const DEFAULT_OBJECT_IDS = ['default-name', 'default-company', 'default-position', 'default-qrcode'];
 
 let philipsControlState = createDefaultPhilipsControlState();
 let philipsDiscoveryIntervalId = null;
 let discoveredHeartbeatSyncCache = new Map();
 let undoHistoryStack = [];
+let redoHistoryStack = [];
 let lastSavedSnapshotKey = null;
 let lastSavedSnapshot = null;
 let isApplyingUndoState = false;
 let autoApplyRatioTimer = null;
 let autoApplyCanvasSizeTimer = null;
+let selectedObjectId = 'default-name';
+let draggedObjectId = null;
+let isContinuousRangeAdjusting = false;
+let rangeAdjustSnapshotPushed = false;
+
+function generateObjectId(prefix = 'obj') {
+    return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function ensureObjectState(state = window.nameplateState) {
+    if (!state) {
+        return;
+    }
+
+    if (!state.objectVisibility || typeof state.objectVisibility !== 'object') {
+        state.objectVisibility = {};
+    }
+
+    DEFAULT_OBJECT_IDS.forEach(objectId => {
+        if (state.objectVisibility[objectId] == null) {
+            state.objectVisibility[objectId] = true;
+        }
+    });
+
+    if (!Array.isArray(state.customObjects)) {
+        state.customObjects = [];
+    }
+
+    const allObjectIds = [
+        ...DEFAULT_OBJECT_IDS,
+        ...state.customObjects
+            .filter(item => item && item.id)
+            .map(item => item.id)
+    ];
+
+    const uniqueOrder = Array.isArray(state.objectOrder)
+        ? state.objectOrder.filter((id, index, array) => id && array.indexOf(id) === index)
+        : [];
+
+    state.objectOrder = uniqueOrder.filter(id => allObjectIds.includes(id));
+    allObjectIds.forEach(id => {
+        if (!state.objectOrder.includes(id)) {
+            state.objectOrder.push(id);
+        }
+    });
+}
+
+function getCustomObjectById(objectId, state = window.nameplateState) {
+    ensureObjectState(state);
+    return state.customObjects.find(item => item.id === objectId) || null;
+}
+
+function getObjectDisplayLabel(objectMeta) {
+    if (objectMeta && objectMeta.displayLabel) {
+        return objectMeta.displayLabel;
+    }
+
+    if (!objectMeta) {
+        return '';
+    }
+
+    if (objectMeta.type === 'text') {
+        const rawText = String(objectMeta.text || '').trim();
+        return rawText || '（空白文字）';
+    }
+
+    if (objectMeta.type === 'qr') {
+        return 'QRCode';
+    }
+
+    if (objectMeta.type === 'image') {
+        return '小圖片';
+    }
+
+    return objectMeta.type || objectMeta.id;
+}
+
+function getDefaultTextFieldByObjectId(objectId) {
+    const mapping = {
+        'default-name': 'name',
+        'default-company': 'company',
+        'default-position': 'position'
+    };
+
+    return mapping[objectId] || '';
+}
+
+function getDefaultFontSizeFieldByObjectId(objectId) {
+    const mapping = {
+        'default-name': 'nameFontSize',
+        'default-company': 'companyFontSize',
+        'default-position': 'positionFontSize'
+    };
+
+    return mapping[objectId] || '';
+}
+
+function getDefaultTextShadowFieldByObjectId(objectId) {
+    const mapping = {
+        'default-name': 'nameTextShadow',
+        'default-company': 'companyTextShadow',
+        'default-position': 'positionTextShadow'
+    };
+
+    return mapping[objectId] || '';
+}
+
+function getObjectIdFromSelectionToken(token) {
+    if (isCustomObjectToken(token)) {
+        return getObjectIdFromToken(token);
+    }
+
+    const mapping = {
+        name: 'default-name',
+        company: 'default-company',
+        position: 'default-position',
+        qrcode: 'default-qrcode'
+    };
+
+    return mapping[token] || null;
+}
+
+function isObjectVisible(objectId, state = window.nameplateState) {
+    ensureObjectState(state);
+
+    if (DEFAULT_OBJECT_IDS.includes(objectId)) {
+        return state.objectVisibility[objectId] !== false;
+    }
+
+    const objectMeta = getCustomObjectById(objectId, state);
+    return objectMeta ? objectMeta.visible !== false : false;
+}
+
+function setObjectVisibility(objectId, visible, state = window.nameplateState) {
+    ensureObjectState(state);
+
+    if (DEFAULT_OBJECT_IDS.includes(objectId)) {
+        state.objectVisibility[objectId] = Boolean(visible);
+        return;
+    }
+
+    const objectMeta = getCustomObjectById(objectId, state);
+    if (objectMeta) {
+        objectMeta.visible = Boolean(visible);
+    }
+}
+
+function getObjectEntries(state = window.nameplateState) {
+    ensureObjectState(state);
+    const list = [];
+    let qrCounter = 0;
+    let imageCounter = 0;
+    const customObjectMap = new Map(
+        state.customObjects
+            .filter(item => item && item.id)
+            .map(item => [item.id, item])
+    );
+
+    state.objectOrder.forEach(objectId => {
+        if (DEFAULT_OBJECT_IDS.includes(objectId)) {
+            const type = objectId === 'default-qrcode' ? 'qr' : 'text';
+            let displayLabel = '';
+
+            if (type === 'text') {
+                const textField = getDefaultTextFieldByObjectId(objectId);
+                displayLabel = String(state[textField] || '').trim() || '（空白文字）';
+            } else {
+                qrCounter += 1;
+                displayLabel = `QRCode ${qrCounter}`;
+            }
+
+            list.push({
+                id: objectId,
+                isDefault: true,
+                type,
+                visible: isObjectVisible(objectId, state),
+                displayLabel
+            });
+            return;
+        }
+
+        const objectMeta = customObjectMap.get(objectId);
+        if (!objectMeta) {
+            return;
+        }
+
+        let displayLabel = '';
+        if (objectMeta.type === 'text') {
+            displayLabel = String(objectMeta.text || '').trim() || '（空白文字）';
+        } else if (objectMeta.type === 'qr') {
+            qrCounter += 1;
+            displayLabel = `QRCode ${qrCounter}`;
+        } else if (objectMeta.type === 'image') {
+            imageCounter += 1;
+            displayLabel = `小圖片 ${imageCounter}`;
+        } else {
+            displayLabel = getObjectDisplayLabel(objectMeta);
+        }
+
+        list.push({ ...objectMeta, visible: objectMeta.visible !== false, displayLabel });
+    });
+
+    return list;
+}
+
+function moveObjectLayer(objectId, direction) {
+    if (!objectId || !direction) {
+        return false;
+    }
+
+    ensureObjectState();
+
+    const currentIndex = window.nameplateState.objectOrder.indexOf(objectId);
+    if (currentIndex < 0) {
+        return false;
+    }
+
+    const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= window.nameplateState.objectOrder.length) {
+        return false;
+    }
+
+    const order = [...window.nameplateState.objectOrder];
+    const [moved] = order.splice(currentIndex, 1);
+    order.splice(targetIndex, 0, moved);
+    window.nameplateState.objectOrder = order;
+    return true;
+}
+
+function getSelectedObjectMeta(state = window.nameplateState) {
+    if (!selectedObjectId) {
+        return null;
+    }
+
+    const objectEntries = getObjectEntries(state);
+    return objectEntries.find(item => item.id === selectedObjectId) || null;
+}
+
+function selectObject(objectId) {
+    selectedObjectId = objectId || null;
+    renderObjectManagerList();
+}
+
+function beginContinuousRangeAdjust() {
+    isContinuousRangeAdjusting = true;
+    rangeAdjustSnapshotPushed = false;
+}
+
+function endContinuousRangeAdjust() {
+    isContinuousRangeAdjusting = false;
+    rangeAdjustSnapshotPushed = false;
+}
+
+function renderObjectManagerList() {
+    const listNode = document.getElementById('objectManagerList');
+    if (!listNode) {
+        return;
+    }
+
+    const objectSection = document.querySelector('.object-manager-section');
+    const settingsPanel = document.getElementById('objectSettingsPanel');
+    if (settingsPanel && settingsPanel.parentElement === listNode && objectSection) {
+        objectSection.insertBefore(settingsPanel, listNode.nextSibling);
+    }
+
+    const objectEntries = getObjectEntries();
+    if (!selectedObjectId || !objectEntries.some(item => item.id === selectedObjectId)) {
+        selectedObjectId = objectEntries.length > 0 ? objectEntries[0].id : null;
+    }
+
+    if (!objectEntries.length) {
+        listNode.innerHTML = '<div class="batch-empty-state">目前沒有可編輯物件</div>';
+        renderSelectedObjectSettings();
+        return;
+    }
+
+    const displayEntries = [...objectEntries].reverse();
+
+    listNode.innerHTML = displayEntries.map((item) => `
+        <div class="object-manager-item" data-object-id="${escapeHtml(item.id)}" draggable="true">
+            <div class="object-manager-row ${item.id === selectedObjectId ? 'is-selected' : ''} ${item.visible === false ? 'is-hidden' : ''}">
+                <button type="button" class="object-manager-select" data-action="select" data-object-id="${escapeHtml(item.id)}">${escapeHtml(item.displayLabel || getObjectDisplayLabel(item))}</button>
+                <button type="button" class="object-manager-toggle" data-action="toggle-visible" data-object-id="${escapeHtml(item.id)}">${item.visible === false ? '顯示' : '隱藏'}</button>
+                <button type="button" class="object-manager-remove" data-action="delete" data-object-id="${escapeHtml(item.id)}">${item.isDefault ? '清除' : '刪除'}</button>
+            </div>
+        </div>
+    `).join('');
+
+    renderSelectedObjectSettings();
+
+    const selectedItemNode = Array.from(listNode.querySelectorAll('.object-manager-item'))
+        .find(node => node.dataset.objectId === selectedObjectId);
+    if (settingsPanel && selectedItemNode && !settingsPanel.hidden) {
+        selectedItemNode.insertAdjacentElement('afterend', settingsPanel);
+    }
+}
+
+function renderSelectedObjectSettings() {
+    const panel = document.getElementById('objectSettingsPanel');
+    if (!panel) {
+        return;
+    }
+
+    const selected = getSelectedObjectMeta();
+    if (!selected) {
+        panel.hidden = true;
+        return;
+    }
+
+    panel.hidden = false;
+    document.getElementById('objectSettingsTitle').textContent = `物件設定：${selected.displayLabel || getObjectDisplayLabel(selected)}`;
+
+    const visibleToggle = document.getElementById('objectVisibleToggle');
+    visibleToggle.checked = selected.visible !== false;
+
+    const isTextObject = selected.type === 'text';
+    const isQrObject = selected.type === 'qr';
+    const isImageObject = selected.type === 'image';
+
+    document.getElementById('objectEditTextGroup').hidden = !isTextObject;
+    document.getElementById('objectEditFontSizeGroup').hidden = !isTextObject;
+    document.getElementById('objectEditColorGroup').hidden = !isTextObject;
+    document.getElementById('objectEditShadowGroup').hidden = !isTextObject;
+    document.getElementById('objectEditQrGroup').hidden = !isQrObject;
+    document.getElementById('objectEditQrSizeGroup').hidden = !isQrObject;
+    document.getElementById('objectEditImageWidthGroup').hidden = !isImageObject;
+    document.getElementById('objectEditImageLockGroup').hidden = !isImageObject;
+    document.getElementById('objectEditImageHeightGroup').hidden = !isImageObject;
+
+    if (isTextObject) {
+        const textField = getDefaultTextFieldByObjectId(selected.id);
+        const fontSizeField = getDefaultFontSizeFieldByObjectId(selected.id);
+        const textValue = selected.isDefault
+            ? String(window.nameplateState[textField] || '')
+            : String(selected.text || '');
+        const fontSizeValue = selected.isDefault
+            ? parseInt(window.nameplateState[fontSizeField] || 48, 10)
+            : parseInt(selected.fontSize || 48, 10);
+        const colorValue = selected.isDefault
+            ? (window.nameplateState.textColor || '#000000')
+            : (selected.color || '#000000');
+        const shadowField = getDefaultTextShadowFieldByObjectId(selected.id);
+        const shadowValue = selected.isDefault
+            ? Boolean(window.nameplateState[shadowField])
+            : Boolean(selected.textShadow);
+
+        document.getElementById('objectEditTextInput').value = textValue;
+        document.getElementById('objectEditFontSize').value = fontSizeValue;
+        document.getElementById('objectEditFontSizeValue').textContent = `${fontSizeValue}px`;
+        document.getElementById('objectEditColorInput').value = colorValue;
+        document.getElementById('objectEditColorValue').textContent = colorValue;
+        document.getElementById('objectEditShadowInput').checked = shadowValue;
+    }
+
+    if (isQrObject) {
+        const qrUrl = selected.isDefault
+            ? String(document.getElementById('qrUrlInput').value || '')
+            : String(selected.qrUrl || '');
+        const qrSizeValue = selected.isDefault
+            ? parseInt(window.nameplateState.qrSize || 100, 10)
+            : parseInt(selected.size || 100, 10);
+        document.getElementById('objectEditQrUrlInput').value = qrUrl;
+        document.getElementById('objectEditQrSize').value = qrSizeValue;
+        document.getElementById('objectEditQrSizeValue').textContent = `${qrSizeValue}px`;
+    }
+
+    if (isImageObject) {
+        const imageWidthValue = parseInt(selected.width || 120, 10);
+        const imageHeightValue = parseInt(selected.height || 120, 10);
+        const imageLockRatio = Boolean(selected.lockAspectRatio);
+        document.getElementById('objectEditImageWidth').value = imageWidthValue;
+        document.getElementById('objectEditImageWidthValue').textContent = `${imageWidthValue}px`;
+        document.getElementById('objectEditImageLockRatio').checked = imageLockRatio;
+        document.getElementById('objectEditImageHeight').value = imageHeightValue;
+        document.getElementById('objectEditImageHeightValue').textContent = `${imageHeightValue}px`;
+    }
+}
+
+function syncSelectedObjectDisplayLabel() {
+    const selected = getSelectedObjectMeta();
+    if (!selected) {
+        return;
+    }
+
+    const label = selected.displayLabel || getObjectDisplayLabel(selected);
+    const titleNode = document.getElementById('objectSettingsTitle');
+    if (titleNode) {
+        titleNode.textContent = `物件設定：${label}`;
+    }
+
+    const listNode = document.getElementById('objectManagerList');
+    if (!listNode) {
+        return;
+    }
+
+    const selectedRow = Array.from(listNode.querySelectorAll('.object-manager-item'))
+        .find(node => node.dataset.objectId === selectedObjectId);
+    const labelButton = selectedRow ? selectedRow.querySelector('.object-manager-select') : null;
+    if (labelButton) {
+        labelButton.textContent = label;
+    }
+}
+
+function updateSelectedObjectText(value) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    const textValue = String(value || '').trim();
+    if (selected.isDefault) {
+        const field = getDefaultTextFieldByObjectId(selected.id);
+        if (field) {
+            window.nameplateState[field] = textValue;
+
+            const inputId = `${field}Input`;
+            const textInput = document.getElementById(inputId);
+            if (textInput) {
+                textInput.value = textValue;
+            }
+
+            if (field === 'name') {
+                updateCharCount(textValue.length);
+            }
+        }
+    } else {
+        const objectMeta = getCustomObjectById(selected.id);
+        if (objectMeta) {
+            objectMeta.text = textValue;
+        }
+    }
+
+    syncSelectedObjectDisplayLabel();
+    triggerRender();
+    saveSettings();
+}
+
+function updateSelectedObjectFontSize(value) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    const fontSize = Math.max(16, Math.min(220, parseInt(value, 10) || 48));
+
+    if (selected.isDefault) {
+        const field = getDefaultFontSizeFieldByObjectId(selected.id);
+        if (field) {
+            window.nameplateState[field] = fontSize;
+
+            const slider = document.getElementById(field);
+            const valueText = document.getElementById(`${field}Value`);
+            if (slider) slider.value = fontSize;
+            if (valueText) valueText.textContent = `${fontSize}px`;
+        }
+    } else {
+        const objectMeta = getCustomObjectById(selected.id);
+        if (objectMeta) {
+            objectMeta.fontSize = fontSize;
+        }
+    }
+
+    document.getElementById('objectEditFontSize').value = fontSize;
+    document.getElementById('objectEditFontSizeValue').textContent = `${fontSize}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function updateSelectedObjectColor(color) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    const normalizedColor = color || '#000000';
+
+    if (selected.isDefault) {
+        window.nameplateState.textColor = normalizedColor;
+        document.getElementById('textColorInput').value = normalizedColor;
+        document.getElementById('textColorValue').textContent = normalizedColor;
+    } else {
+        const objectMeta = getCustomObjectById(selected.id);
+        if (objectMeta) {
+            objectMeta.color = normalizedColor;
+        }
+    }
+
+    document.getElementById('objectEditColorInput').value = normalizedColor;
+    document.getElementById('objectEditColorValue').textContent = normalizedColor;
+    triggerRender();
+    saveSettings();
+}
+
+function updateSelectedObjectShadow(checked) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    if (selected.isDefault) {
+        const shadowField = getDefaultTextShadowFieldByObjectId(selected.id);
+        if (shadowField) {
+            window.nameplateState[shadowField] = Boolean(checked);
+        }
+        document.getElementById('textShadow').checked = Boolean(checked);
+    } else {
+        const objectMeta = getCustomObjectById(selected.id);
+        if (objectMeta) {
+            objectMeta.textShadow = Boolean(checked);
+        }
+    }
+
+    document.getElementById('objectEditShadowInput').checked = Boolean(checked);
+    triggerRender();
+    saveSettings();
+}
+
+async function updateSelectedObjectQrUrl() {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'qr') {
+        return;
+    }
+
+    const qrUrlInput = document.getElementById('objectEditQrUrlInput');
+    const qrUrl = String(qrUrlInput.value || '').trim();
+    if (!qrUrl) {
+        showNotification('請輸入 QRCode 網址', 'error');
+        return;
+    }
+
+    if (selected.isDefault) {
+        document.getElementById('qrUrlInput').value = qrUrl;
+        await handleGenerateQrCode();
+        renderSelectedObjectSettings();
+        return;
+    }
+
+    const objectMeta = getCustomObjectById(selected.id);
+    if (!objectMeta) {
+        return;
+    }
+
+    try {
+        objectMeta.qrUrl = qrUrl;
+        objectMeta.dataUrl = await generateQrCodeDataUrl(qrUrl);
+        triggerRender();
+        saveSettings();
+        showNotification('已更新 QRCode 物件', 'success');
+    } catch (error) {
+        showNotification(`更新 QRCode 失敗: ${error.message}`, 'error');
+    }
+}
+
+function updateSelectedObjectQrSize(value) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'qr') {
+        return;
+    }
+
+    const size = Math.max(40, Math.min(260, parseInt(value, 10) || 100));
+    if (selected.isDefault) {
+        window.nameplateState.qrSize = size;
+        const defaultQrSlider = document.getElementById('qrSize');
+        const defaultQrValue = document.getElementById('qrSizeValue');
+        if (defaultQrSlider) defaultQrSlider.value = size;
+        if (defaultQrValue) defaultQrValue.textContent = `${size}px`;
+    } else {
+        const objectMeta = getCustomObjectById(selected.id);
+        if (objectMeta) {
+            objectMeta.size = size;
+        }
+    }
+
+    document.getElementById('objectEditQrSize').value = size;
+    document.getElementById('objectEditQrSizeValue').textContent = `${size}px`;
+    triggerRender();
+    saveSettings();
+}
+
+function updateSelectedObjectImageSize(dimension, value) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'image') {
+        return;
+    }
+
+    const size = Math.max(20, Math.min(600, parseInt(value, 10) || 120));
+    const objectMeta = getCustomObjectById(selected.id);
+    if (!objectMeta) {
+        return;
+    }
+
+    const previousWidth = Math.max(1, parseInt(objectMeta.width || 120, 10));
+    const previousHeight = Math.max(1, parseInt(objectMeta.height || 120, 10));
+    const ratio = Number(objectMeta.aspectRatio) > 0
+        ? Number(objectMeta.aspectRatio)
+        : (previousWidth / previousHeight);
+
+    if (dimension === 'width') {
+        objectMeta.width = size;
+        document.getElementById('objectEditImageWidth').value = size;
+        document.getElementById('objectEditImageWidthValue').textContent = `${size}px`;
+
+        if (objectMeta.lockAspectRatio) {
+            const syncedHeight = Math.max(20, Math.min(600, Math.round(size / Math.max(0.01, ratio))));
+            objectMeta.height = syncedHeight;
+            document.getElementById('objectEditImageHeight').value = syncedHeight;
+            document.getElementById('objectEditImageHeightValue').textContent = `${syncedHeight}px`;
+        } else if ((parseInt(objectMeta.height || 0, 10)) > 0) {
+            objectMeta.aspectRatio = objectMeta.width / objectMeta.height;
+        }
+    } else {
+        objectMeta.height = size;
+        document.getElementById('objectEditImageHeight').value = size;
+        document.getElementById('objectEditImageHeightValue').textContent = `${size}px`;
+
+        if (objectMeta.lockAspectRatio) {
+            const syncedWidth = Math.max(20, Math.min(600, Math.round(size * Math.max(0.01, ratio))));
+            objectMeta.width = syncedWidth;
+            document.getElementById('objectEditImageWidth').value = syncedWidth;
+            document.getElementById('objectEditImageWidthValue').textContent = `${syncedWidth}px`;
+        }
+
+        if ((parseInt(objectMeta.height || 0, 10)) > 0) {
+            objectMeta.aspectRatio = objectMeta.width / objectMeta.height;
+        }
+    }
+
+    triggerRender();
+    saveSettings();
+}
+
+function updateSelectedObjectImageAspectLock(checked) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'image') {
+        return;
+    }
+
+    const objectMeta = getCustomObjectById(selected.id);
+    if (!objectMeta) {
+        return;
+    }
+
+    objectMeta.lockAspectRatio = Boolean(checked);
+    if (objectMeta.lockAspectRatio) {
+        const width = Math.max(1, parseInt(objectMeta.width || 120, 10));
+        const height = Math.max(1, parseInt(objectMeta.height || 120, 10));
+        objectMeta.aspectRatio = width / height;
+    }
+
+    document.getElementById('objectEditImageLockRatio').checked = Boolean(checked);
+    saveSettings();
+}
+
+function toggleObjectVisibility(objectId) {
+    if (!objectId) {
+        return;
+    }
+
+    const nextVisible = !isObjectVisible(objectId);
+    setObjectVisibility(objectId, nextVisible);
+    renderObjectManagerList();
+    triggerRender();
+    saveSettings();
+}
+
+function deleteObjectById(objectId) {
+    if (!objectId) {
+        return;
+    }
+
+    ensureObjectState();
+
+    if (DEFAULT_OBJECT_IDS.includes(objectId)) {
+        setObjectVisibility(objectId, false);
+    } else {
+        window.nameplateState.customObjects = window.nameplateState.customObjects.filter(item => item.id !== objectId);
+        window.nameplateState.objectOrder = window.nameplateState.objectOrder.filter(id => id !== objectId);
+    }
+
+    const objectEntries = getObjectEntries();
+    selectedObjectId = objectEntries.length > 0 ? objectEntries[0].id : null;
+    renderObjectManagerList();
+    triggerRender();
+    saveSettings();
+}
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
@@ -209,6 +898,77 @@ function attachEventListeners() {
     document.getElementById('batchPreviewBody').addEventListener('click', handleBatchPreviewAction);
     document.getElementById('batchPreviewBody').addEventListener('change', handleBatchPreviewEdit);
 
+    document.getElementById('addTextObjectBtn').addEventListener('click', handleAddTextObject);
+    document.getElementById('addQrObjectBtn').addEventListener('click', handleAddQrObject);
+    document.getElementById('addImageObjectBtn').addEventListener('click', handleAddImageObject);
+    document.getElementById('deleteSelectedObjectBtn').addEventListener('click', () => deleteObjectById(selectedObjectId));
+    document.getElementById('objectManagerList').addEventListener('click', handleObjectManagerClick);
+    document.getElementById('objectManagerList').addEventListener('dragstart', handleObjectManagerDragStart);
+    document.getElementById('objectManagerList').addEventListener('dragover', handleObjectManagerDragOver);
+    document.getElementById('objectManagerList').addEventListener('drop', handleObjectManagerDrop);
+    document.getElementById('objectManagerList').addEventListener('dragend', handleObjectManagerDragEnd);
+
+    // 滑桿拖曳屬於連續動作：整段拖曳只記一個 Undo 步驟
+    document.querySelectorAll('input[type="range"]').forEach(input => {
+        input.addEventListener('pointerdown', beginContinuousRangeAdjust);
+        input.addEventListener('pointerup', endContinuousRangeAdjust);
+        input.addEventListener('pointercancel', endContinuousRangeAdjust);
+    });
+    window.addEventListener('pointerup', endContinuousRangeAdjust);
+    window.addEventListener('pointercancel', endContinuousRangeAdjust);
+    document.getElementById('objectVisibleToggle').addEventListener('change', (event) => {
+        if (!selectedObjectId) {
+            return;
+        }
+
+        setObjectVisibility(selectedObjectId, event.target.checked);
+        renderObjectManagerList();
+        triggerRender();
+        saveSettings();
+    });
+    document.getElementById('objectEditTextInput').addEventListener('input', (event) => {
+        updateSelectedObjectText(event.target.value);
+    });
+    document.getElementById('objectEditFontSize').addEventListener('input', (event) => {
+        updateSelectedObjectFontSize(event.target.value);
+    });
+    document.getElementById('objectEditColorInput').addEventListener('change', (event) => {
+        updateSelectedObjectColor(event.target.value);
+    });
+    document.getElementById('objectEditShadowInput').addEventListener('change', (event) => {
+        updateSelectedObjectShadow(event.target.checked);
+    });
+    document.getElementById('applyObjectQrUrlBtn').addEventListener('click', async () => {
+        await updateSelectedObjectQrUrl();
+    });
+    document.getElementById('objectEditQrSize').addEventListener('input', (event) => {
+        updateSelectedObjectQrSize(event.target.value);
+    });
+    document.getElementById('objectEditImageWidth').addEventListener('input', (event) => {
+        updateSelectedObjectImageSize('width', event.target.value);
+    });
+    document.getElementById('objectEditImageLockRatio').addEventListener('change', (event) => {
+        updateSelectedObjectImageAspectLock(event.target.checked);
+    });
+    document.getElementById('objectEditImageHeight').addEventListener('input', (event) => {
+        updateSelectedObjectImageSize('height', event.target.value);
+    });
+
+    // 貼上圖片目標偏好（使用者最近互動的上傳區）
+    document.getElementById('bgImageInput').addEventListener('focus', () => { preferredPasteImageTarget = 'background'; });
+    document.getElementById('imagePreview').addEventListener('click', () => { preferredPasteImageTarget = 'background'; });
+    document.getElementById('qrImageInput').addEventListener('focus', () => { preferredPasteImageTarget = 'qrcode'; });
+    document.getElementById('qrPreview').addEventListener('click', () => { preferredPasteImageTarget = 'qrcode'; });
+    document.getElementById('directImageUploadInput').addEventListener('focus', () => { preferredPasteImageTarget = 'direct-upload'; });
+    document.getElementById('directImagePreview').addEventListener('click', () => { preferredPasteImageTarget = 'direct-upload'; });
+    document.getElementById('uploadImageToBothBtn').addEventListener('focus', () => { preferredPasteImageTarget = 'direct-upload'; });
+    document.getElementById('objectImageFileInput').addEventListener('focus', () => { preferredPasteImageTarget = 'object-image'; });
+    document.getElementById('addImageObjectBtn').addEventListener('focus', () => { preferredPasteImageTarget = 'object-image'; });
+    document.getElementById('objectManagerList').addEventListener('click', () => { preferredPasteImageTarget = 'object-image'; });
+
+    // 全域貼上圖片支援
+    document.addEventListener('paste', handleGlobalImagePaste);
+
     // 快速預設
     document.querySelectorAll('.preset-btn').forEach(btn => {
         btn.addEventListener('click', handlePresetClick);
@@ -288,6 +1048,78 @@ function attachEventListeners() {
     document.getElementById('factoryResetBtn').addEventListener('click', handleFactoryResetPreferences);
     document.getElementById('changeIpBtn').addEventListener('click', handleChangeIpConfig);
     document.getElementById('otaBtn').addEventListener('click', handleTriggerOtaUpdate);
+}
+
+function getClipboardImageFile(event) {
+    const clipboardItems = event.clipboardData && event.clipboardData.items
+        ? Array.from(event.clipboardData.items)
+        : [];
+
+    const imageItem = clipboardItems.find(item => item.kind === 'file' && item.type && item.type.startsWith('image/'));
+    if (!imageItem) {
+        return null;
+    }
+
+    return imageItem.getAsFile();
+}
+
+function resolvePasteImageTarget(event) {
+    const activeElement = document.activeElement;
+    const targetElement = event.target instanceof Element ? event.target : activeElement;
+
+    if (targetElement && targetElement.closest('.upload-direct-block')) {
+        return 'direct-upload';
+    }
+
+    if (targetElement && targetElement.closest('.object-manager-section')) {
+        return 'object-image';
+    }
+
+    if (activeElement && activeElement.id === 'qrImageInput') {
+        return 'qrcode';
+    }
+
+    if (activeElement && activeElement.id === 'directImageUploadInput') {
+        return 'direct-upload';
+    }
+
+    if (activeElement && activeElement.id === 'objectImageFileInput') {
+        return 'object-image';
+    }
+
+    return preferredPasteImageTarget || 'background';
+}
+
+async function handleGlobalImagePaste(event) {
+    const imageFile = getClipboardImageFile(event);
+    if (!imageFile) {
+        return;
+    }
+
+    event.preventDefault();
+    const target = resolvePasteImageTarget(event);
+
+    if (target === 'qrcode') {
+        applyQrImageFile(imageFile);
+        preferredPasteImageTarget = 'qrcode';
+        return;
+    }
+
+    if (target === 'direct-upload') {
+        applyDirectUploadImageFile(imageFile);
+        preferredPasteImageTarget = 'direct-upload';
+        showNotification('已貼上圖片，可直接上傳到桌牌', 'success');
+        return;
+    }
+
+    if (target === 'object-image') {
+        await addImageObjectFromFile(imageFile);
+        preferredPasteImageTarget = 'object-image';
+        return;
+    }
+
+    applyBackgroundImageFile(imageFile);
+    preferredPasteImageTarget = 'background';
 }
 
 function initSectionCollapse() {
@@ -1383,7 +2215,7 @@ async function handlePushDisplayBothImages() {
 async function handleUploadImageToBothDisplays() {
     await withPhilipsAction('上傳圖片並同步更新雙面', async () => {
         const fileInput = document.getElementById('directImageUploadInput');
-        const selectedFile = fileInput && fileInput.files ? fileInput.files[0] : null;
+        const selectedFile = (fileInput && fileInput.files ? fileInput.files[0] : null) || directUploadImageFile;
         if (!selectedFile) {
             throw new Error('請先選擇要上傳的圖片');
         }
@@ -1996,12 +2828,15 @@ async function pushBatchRecordToPhilipsDevice(record) {
 
 function applyStateToCanvasOnly(state) {
     window.nameplateState = state;
+    ensureObjectState(window.nameplateState);
     triggerRender();
 }
 
 function restoreTemplateState(template) {
     window.nameplateState = template.state;
+    ensureObjectState(window.nameplateState);
     syncControlsFromState(template.state, template.opacity);
+    renderObjectManagerList();
 
     if (template.bgImageDataUrl) {
         window.renderer.setBackgroundImageDataUrl(template.bgImageDataUrl);
@@ -2111,6 +2946,7 @@ function handleNameChange(e) {
     const value = e.target.value;
     window.nameplateState.name = value || '名字';
     updateCharCount(value.length);
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2118,6 +2954,7 @@ function handleNameChange(e) {
 function handleCompanyChange(e) {
     const value = e.target.value;
     window.nameplateState.company = value;
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2125,6 +2962,7 @@ function handleCompanyChange(e) {
 function handlePositionChange(e) {
     const value = e.target.value;
     window.nameplateState.position = value;
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2205,32 +3043,46 @@ function handleBgColorChange(e) {
     saveSettings();
 }
 
+function applyBackgroundImageFile(file) {
+    if (!file) {
+        return;
+    }
+
+    if (!file.type || !file.type.startsWith('image/')) {
+        showNotification('請貼上或選擇圖片檔案', 'error');
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification('圖片大小不能超過 5MB', 'error');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        bgImageDataUrl = event.target.result;
+        window.renderer.setBackgroundImageDataUrl(bgImageDataUrl);
+
+        const preview = document.getElementById('imagePreview');
+        preview.innerHTML = `<img src="${event.target.result}" alt="背景預覽">`;
+        preview.classList.add('has-image');
+        document.getElementById('clearImageBtn').style.display = 'block';
+
+        saveSettings();
+    };
+    reader.readAsDataURL(file);
+
+    showNotification('圖片已上傳', 'success');
+}
+
 function handleImageUpload(e) {
     const file = e.target.files[0];
-    if (file) {
-        // 驗證檔案大小（限制5MB）
-        if (file.size > 5 * 1024 * 1024) {
-            showNotification('圖片大小不能超過 5MB', 'error');
-            return;
-        }
-
-        // 顯示圖片預覽
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            bgImageDataUrl = e.target.result;
-            window.renderer.setBackgroundImageDataUrl(bgImageDataUrl);
-
-            const preview = document.getElementById('imagePreview');
-            preview.innerHTML = `<img src="${e.target.result}" alt="背景預覽">`;
-            preview.classList.add('has-image');
-            document.getElementById('clearImageBtn').style.display = 'block';
-
-            saveSettings();
-        };
-        reader.readAsDataURL(file);
-
-        showNotification('圖片已上傳', 'success');
+    if (!file) {
+        return;
     }
+
+    preferredPasteImageTarget = 'background';
+    applyBackgroundImageFile(file);
 }
 
 function handleClearImage() {
@@ -2263,29 +3115,43 @@ function updateDirectImagePreview(imageDataUrl) {
     preview.classList.add('has-image');
 }
 
-function handleDirectImageUploadPreview(e) {
-    const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+function applyDirectUploadImageFile(file) {
     if (!file) {
+        directUploadImageFile = null;
         updateDirectImagePreview('');
         return;
     }
 
     if (!file.type || !file.type.startsWith('image/')) {
         showNotification('請選擇圖片檔案', 'error');
-        e.target.value = '';
+        directUploadImageFile = null;
         updateDirectImagePreview('');
         return;
     }
 
+    directUploadImageFile = file;
     const reader = new FileReader();
     reader.onload = (event) => {
         updateDirectImagePreview(String(event.target.result || ''));
     };
     reader.onerror = () => {
         showNotification('圖片預覽讀取失敗', 'error');
+        directUploadImageFile = null;
         updateDirectImagePreview('');
     };
     reader.readAsDataURL(file);
+}
+
+function handleDirectImageUploadPreview(e) {
+    const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+    preferredPasteImageTarget = 'direct-upload';
+    applyDirectUploadImageFile(file);
+
+    if (!file || (file.type && file.type.startsWith('image/'))) {
+        return;
+    }
+
+    e.target.value = '';
 }
 
 function handleOpacityChange(e) {
@@ -2298,7 +3164,23 @@ function handleOpacityChange(e) {
 
 function handleQrImageUpload(e) {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file) {
+        return;
+    }
+
+    preferredPasteImageTarget = 'qrcode';
+    applyQrImageFile(file);
+}
+
+function applyQrImageFile(file) {
+    if (!file) {
+        return;
+    }
+
+    if (!file.type || !file.type.startsWith('image/')) {
+        showNotification('請貼上或選擇 QRCode 圖片', 'error');
+        return;
+    }
 
     if (file.size > 5 * 1024 * 1024) {
         showNotification('QRCode 圖片大小不能超過 5MB', 'error');
@@ -2336,6 +3218,7 @@ async function handleGenerateQrCode() {
         await window.renderer.setQrCodeDataUrl(qrCodeDataUrl);
         updateQrPreview(qrCodeDataUrl);
         updateQrToggleButton();
+        renderSelectedObjectSettings();
         saveSettings();
         showNotification('已由網址產生 QRCode', 'success');
     } finally {
@@ -2413,6 +3296,7 @@ function handleClearQrCode() {
     document.getElementById('clearQrBtn').style.display = 'none';
     updateQrToggleButton();
 
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2420,6 +3304,7 @@ function handleClearQrCode() {
 function handleToggleQrVisibility() {
     window.nameplateState.qrVisible = window.nameplateState.qrVisible === false;
     updateQrToggleButton();
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2489,6 +3374,7 @@ function handleFontSizeChange(stateKey, valueElementId, value) {
     const size = parseInt(value);
     window.nameplateState[stateKey] = size;
     document.getElementById(valueElementId).textContent = `${size}px`;
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2509,12 +3395,18 @@ function handleTextColorChange(e) {
     const color = e.target.value;
     window.nameplateState.textColor = color;
     document.getElementById('textColorValue').textContent = color;
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
 
 function handleTextShadowChange(e) {
-    window.nameplateState.textShadow = e.target.checked;
+    const value = Boolean(e.target.checked);
+    window.nameplateState.textShadow = value;
+    window.nameplateState.nameTextShadow = value;
+    window.nameplateState.companyTextShadow = value;
+    window.nameplateState.positionTextShadow = value;
+    renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
 }
@@ -2611,6 +3503,60 @@ function handleCenterPosition(offsetKey) {
     showNotification(`${getTextLabel(offsetKey.split('Offset')[0])} 已置中`, 'success');
 }
 
+function isCustomObjectToken(token) {
+    return typeof token === 'string' && token.startsWith('object:');
+}
+
+function getObjectIdFromToken(token) {
+    return isCustomObjectToken(token) ? token.replace('object:', '') : '';
+}
+
+function getDragStartOffsets(selectionToken) {
+    if (isCustomObjectToken(selectionToken)) {
+        const objectId = getObjectIdFromToken(selectionToken);
+        const objectMeta = getCustomObjectById(objectId);
+        return {
+            offsetX: objectMeta ? parseInt(objectMeta.offsetX || 0, 10) : 0,
+            offsetY: objectMeta ? parseInt(objectMeta.offsetY || 0, 10) : 0
+        };
+    }
+
+    return {
+        offsetX: window.nameplateState[`${selectionToken}OffsetX`] || 0,
+        offsetY: window.nameplateState[`${selectionToken}OffsetY`] || 0
+    };
+}
+
+function applyDraggedOffsets(selectionToken, newOffsetX, newOffsetY) {
+    if (isCustomObjectToken(selectionToken)) {
+        const objectId = getObjectIdFromToken(selectionToken);
+        const objectMeta = getCustomObjectById(objectId);
+        if (!objectMeta) {
+            return;
+        }
+
+        objectMeta.offsetX = newOffsetX;
+        objectMeta.offsetY = newOffsetY;
+        return;
+    }
+
+    window.nameplateState[`${selectionToken}OffsetX`] = newOffsetX;
+    window.nameplateState[`${selectionToken}OffsetY`] = newOffsetY;
+}
+
+function syncDraggedOffsetControls(selectionToken, newOffsetX, newOffsetY) {
+    if (isCustomObjectToken(selectionToken)) {
+        return;
+    }
+
+    document.getElementById(`${selectionToken}OffsetX`).value = newOffsetX;
+    document.getElementById(`${selectionToken}OffsetY`).value = newOffsetY;
+    updateOffsetDisplay(`${selectionToken}OffsetXValue`, newOffsetX);
+    updateOffsetDisplay(`${selectionToken}OffsetYValue`, newOffsetY);
+    document.getElementById(`${selectionToken}OffsetXInput`).value = newOffsetX;
+    document.getElementById(`${selectionToken}OffsetYInput`).value = newOffsetY;
+}
+
 // ========== Canvas 拖曳處理 ==========
 function handleCanvasMouseDown(e) {
     const canvas = e.target;
@@ -2631,8 +3577,14 @@ function handleCanvasMouseDown(e) {
         dragState.selectedText = textType;
         dragState.startX = x;
         dragState.startY = y;
-        dragState.startOffsetX = window.nameplateState[`${textType}OffsetX`] || 0;
-        dragState.startOffsetY = window.nameplateState[`${textType}OffsetY`] || 0;
+        const startOffsets = getDragStartOffsets(textType);
+        dragState.startOffsetX = startOffsets.offsetX;
+        dragState.startOffsetY = startOffsets.offsetY;
+
+        const objectId = getObjectIdFromSelectionToken(textType);
+        if (objectId) {
+            selectObject(objectId);
+        }
         
         canvas.style.cursor = 'grabbing';
         showNotification(`拖曳${getTextLabel(textType)}`, 'info');
@@ -2661,18 +3613,8 @@ function handleCanvasMouseMove(e) {
         const newOffsetX = clamp(dragState.startOffsetX + deltaX, bounds.minX, bounds.maxX);
         const newOffsetY = clamp(dragState.startOffsetY + deltaY, bounds.minY, bounds.maxY);
 
-        window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
-        window.nameplateState[`${dragState.selectedText}OffsetY`] = newOffsetY;
-
-        // 更新滑塊
-        document.getElementById(`${dragState.selectedText}OffsetX`).value = newOffsetX;
-        document.getElementById(`${dragState.selectedText}OffsetY`).value = newOffsetY;
-        updateOffsetDisplay(`${dragState.selectedText}OffsetXValue`, newOffsetX);
-        updateOffsetDisplay(`${dragState.selectedText}OffsetYValue`, newOffsetY);
-        
-        // 更新number input
-        document.getElementById(`${dragState.selectedText}OffsetXInput`).value = newOffsetX;
-        document.getElementById(`${dragState.selectedText}OffsetYInput`).value = newOffsetY;
+        applyDraggedOffsets(dragState.selectedText, newOffsetX, newOffsetY);
+        syncDraggedOffsetControls(dragState.selectedText, newOffsetX, newOffsetY);
 
         triggerRender();
     } else {
@@ -2722,8 +3664,14 @@ function handleCanvasTouchStart(e) {
         dragState.selectedText = textType;
         dragState.startX = x;
         dragState.startY = y;
-        dragState.startOffsetX = window.nameplateState[`${textType}OffsetX`] || 0;
-        dragState.startOffsetY = window.nameplateState[`${textType}OffsetY`] || 0;
+        const startOffsets = getDragStartOffsets(textType);
+        dragState.startOffsetX = startOffsets.offsetX;
+        dragState.startOffsetY = startOffsets.offsetY;
+
+        const objectId = getObjectIdFromSelectionToken(textType);
+        if (objectId) {
+            selectObject(objectId);
+        }
         
         e.preventDefault(); // 防止頁面滾動
         showNotification(`拖曳${getTextLabel(textType)}`, 'info');
@@ -2754,18 +3702,8 @@ function handleCanvasTouchMove(e) {
     const newOffsetX = clamp(dragState.startOffsetX + deltaX, bounds.minX, bounds.maxX);
     const newOffsetY = clamp(dragState.startOffsetY + deltaY, bounds.minY, bounds.maxY);
 
-    window.nameplateState[`${dragState.selectedText}OffsetX`] = newOffsetX;
-    window.nameplateState[`${dragState.selectedText}OffsetY`] = newOffsetY;
-
-    // 更新滑塊
-    document.getElementById(`${dragState.selectedText}OffsetX`).value = newOffsetX;
-    document.getElementById(`${dragState.selectedText}OffsetY`).value = newOffsetY;
-    updateOffsetDisplay(`${dragState.selectedText}OffsetXValue`, newOffsetX);
-    updateOffsetDisplay(`${dragState.selectedText}OffsetYValue`, newOffsetY);
-    
-    // 更新number input
-    document.getElementById(`${dragState.selectedText}OffsetXInput`).value = newOffsetX;
-    document.getElementById(`${dragState.selectedText}OffsetYInput`).value = newOffsetY;
+    applyDraggedOffsets(dragState.selectedText, newOffsetX, newOffsetY);
+    syncDraggedOffsetControls(dragState.selectedText, newOffsetX, newOffsetY);
 
     triggerRender();
     
@@ -2782,6 +3720,12 @@ function handleCanvasTouchEnd(e) {
 }
 
 function getTextLabel(type) {
+    if (isCustomObjectToken(type)) {
+        const objectId = getObjectIdFromToken(type);
+        const objectEntry = getObjectEntries().find(item => item.id === objectId);
+        return objectEntry ? (objectEntry.displayLabel || getObjectDisplayLabel(objectEntry)) : '自訂物件';
+    }
+
     const labels = {
         name: '姓名',
         company: '公司',
@@ -2789,6 +3733,228 @@ function getTextLabel(type) {
         qrcode: 'QRCode'
     };
     return labels[type] || type;
+}
+
+function handleObjectManagerClick(event) {
+    const target = event.target.closest('[data-action][data-object-id]');
+    if (!target) {
+        return;
+    }
+
+    const objectId = target.getAttribute('data-object-id');
+    const action = target.getAttribute('data-action');
+
+    if (action === 'select') {
+        selectObject(objectId);
+        showNotification('已選取物件，可在畫布拖曳調整位置', 'info');
+        return;
+    }
+
+    if (action === 'toggle-visible') {
+        toggleObjectVisibility(objectId);
+        showNotification('已更新物件顯示狀態', 'success');
+        return;
+    }
+
+    if (action === 'delete') {
+        deleteObjectById(objectId);
+        showNotification('物件已清除', 'success');
+    }
+}
+
+function handleObjectManagerDragStart(event) {
+    const itemNode = event.target.closest('.object-manager-item[data-object-id]');
+    if (!itemNode) {
+        return;
+    }
+
+    draggedObjectId = itemNode.dataset.objectId;
+    itemNode.classList.add('is-dragging');
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', draggedObjectId);
+    }
+}
+
+function handleObjectManagerDragOver(event) {
+    if (!draggedObjectId) {
+        return;
+    }
+
+    const listNode = document.getElementById('objectManagerList');
+    const targetNode = event.target.closest('.object-manager-item[data-object-id]');
+    const draggingNode = listNode ? listNode.querySelector(`.object-manager-item[data-object-id="${draggedObjectId}"]`) : null;
+
+    if (!listNode || !draggingNode) {
+        return;
+    }
+
+    event.preventDefault();
+
+    if (!targetNode) {
+        listNode.appendChild(draggingNode);
+        return;
+    }
+
+    if (targetNode === draggingNode) {
+        return;
+    }
+
+    const rect = targetNode.getBoundingClientRect();
+    const insertAfter = event.clientY > rect.top + rect.height / 2;
+    if (insertAfter) {
+        listNode.insertBefore(draggingNode, targetNode.nextSibling);
+    } else {
+        listNode.insertBefore(draggingNode, targetNode);
+    }
+}
+
+function handleObjectManagerDrop(event) {
+    if (!draggedObjectId) {
+        return;
+    }
+
+    event.preventDefault();
+    const listNode = document.getElementById('objectManagerList');
+    if (!listNode) {
+        return;
+    }
+
+    const displayOrder = Array.from(listNode.querySelectorAll('.object-manager-item[data-object-id]'))
+        .map(node => node.dataset.objectId)
+        .filter(Boolean);
+
+    if (!displayOrder.length) {
+        return;
+    }
+
+    window.nameplateState.objectOrder = [...displayOrder].reverse();
+    renderObjectManagerList();
+    triggerRender();
+    saveSettings();
+    showNotification('已調整圖層順序', 'success');
+}
+
+function handleObjectManagerDragEnd() {
+    const listNode = document.getElementById('objectManagerList');
+    if (listNode) {
+        listNode.querySelectorAll('.object-manager-item.is-dragging').forEach(node => {
+            node.classList.remove('is-dragging');
+        });
+    }
+
+    draggedObjectId = null;
+}
+
+function handleAddTextObject() {
+    ensureObjectState();
+    const textInput = document.getElementById('objectTextInput');
+    const textValue = String(textInput.value || '').trim() || '新文字';
+
+    const objectMeta = {
+        id: generateObjectId('text'),
+        type: 'text',
+        text: textValue,
+        fontSize: Math.max(20, Math.round((window.nameplateState.nameFontSize || 120) * 0.42)),
+        color: window.nameplateState.textColor || '#000000',
+        textShadow: false,
+        offsetX: 0,
+        offsetY: 0,
+        visible: true
+    };
+
+    window.nameplateState.customObjects.push(objectMeta);
+    ensureObjectState();
+    textInput.value = '';
+    selectObject(objectMeta.id);
+    triggerRender();
+    saveSettings();
+    showNotification('已新增文字物件', 'success');
+}
+
+async function handleAddQrObject() {
+    ensureObjectState();
+    const qrUrlInput = document.getElementById('objectQrUrlInput');
+    const qrUrl = String(qrUrlInput.value || '').trim() || DEFAULT_QR_SAMPLE_URL;
+
+    try {
+        const dataUrl = await generateQrCodeDataUrl(qrUrl);
+        const objectMeta = {
+            id: generateObjectId('qr'),
+            type: 'qr',
+            qrUrl,
+            dataUrl,
+            size: window.nameplateState.qrSize || 100,
+            offsetX: 0,
+            offsetY: 0,
+            visible: true
+        };
+
+        window.nameplateState.customObjects.push(objectMeta);
+        ensureObjectState();
+        qrUrlInput.value = '';
+        selectObject(objectMeta.id);
+        triggerRender();
+        saveSettings();
+        showNotification('已新增 QRCode 物件', 'success');
+    } catch (error) {
+        showNotification(`新增 QRCode 失敗: ${error.message}`, 'error');
+    }
+}
+
+async function addImageObjectFromFile(file) {
+    ensureObjectState();
+    if (!file) {
+        showNotification('請先選擇小圖片檔案', 'error');
+        return;
+    }
+
+    if (!file.type || !file.type.startsWith('image/')) {
+        showNotification('檔案格式不正確，請選擇圖片', 'error');
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification('圖片大小不能超過 5MB', 'error');
+        return;
+    }
+
+    try {
+        const dataUrl = await readImageFileAsDataUrl(file);
+        const objectMeta = {
+            id: generateObjectId('img'),
+            type: 'image',
+            name: file.name,
+            dataUrl,
+            width: 120,
+            height: 120,
+            lockAspectRatio: false,
+            aspectRatio: 1,
+            offsetX: 0,
+            offsetY: 0,
+            visible: true
+        };
+
+        window.nameplateState.customObjects.push(objectMeta);
+        ensureObjectState();
+        const imageInput = document.getElementById('objectImageFileInput');
+        if (imageInput) {
+            imageInput.value = '';
+        }
+        selectObject(objectMeta.id);
+        triggerRender();
+        saveSettings();
+        showNotification('已新增小圖片物件', 'success');
+    } catch (error) {
+        showNotification(`新增小圖片失敗: ${error.message}`, 'error');
+    }
+}
+
+async function handleAddImageObject() {
+    preferredPasteImageTarget = 'object-image';
+    const imageInput = document.getElementById('objectImageFileInput');
+    const file = imageInput.files && imageInput.files[0] ? imageInput.files[0] : null;
+    await addImageObjectFromFile(file);
 }
 
 async function handleBatchCsvImport(e) {
@@ -2859,7 +4025,9 @@ function handleBatchPreviewAction(e) {
     const template = createBatchTemplateState();
     const nextState = createStateFromBatchRecord(template.state, record);
     window.nameplateState = nextState;
+    ensureObjectState(window.nameplateState);
     syncControlsFromState(nextState, template.opacity);
+    renderObjectManagerList();
     triggerRender();
     setBatchStatus(`已套用第 ${record.rowNumber} 列到編輯器，可直接檢查版面。`);
     showNotification(`已套用 ${record.name} 的資料`, 'info');
@@ -3011,6 +4179,7 @@ function handleReset() {
         document.getElementById('qrSizeValue').textContent = '100px';
         document.getElementById('qrUrlInput').value = '';
         document.getElementById('directImageUploadInput').value = '';
+        directUploadImageFile = null;
         updateDirectImagePreview('');
 
         // 重置狀態
@@ -3024,6 +4193,9 @@ function handleReset() {
             positionFontSize: 50,
             textColor: '#000000',
             textShadow: false,
+            nameTextShadow: false,
+            companyTextShadow: false,
+            positionTextShadow: false,
             nameOffsetX: 0,
             nameOffsetY: 0,
             companyOffsetX: 0,
@@ -3033,8 +4205,17 @@ function handleReset() {
             qrcodeOffsetX: -280,
             qrcodeOffsetY: 0,
             qrSize: 100,
-            qrVisible: true
+            qrVisible: true,
+            objectVisibility: {
+                'default-name': true,
+                'default-company': true,
+                'default-position': true,
+                'default-qrcode': true
+            },
+            customObjects: []
         };
+        selectedObjectId = 'default-name';
+        renderObjectManagerList();
 
         // 清除圖片
         handleClearImage();
@@ -3091,6 +4272,9 @@ function handlePresetClick(e) {
     window.nameplateState.positionFontSize = preset.positionFontSize;
     window.nameplateState.textColor = preset.textColor;
     window.nameplateState.textShadow = preset.textShadow;
+    window.nameplateState.nameTextShadow = preset.textShadow;
+    window.nameplateState.companyTextShadow = preset.textShadow;
+    window.nameplateState.positionTextShadow = preset.textShadow;
 
     // 更新表單
     document.getElementById('bgColorInput').value = preset.bgColor;
@@ -3254,6 +4438,13 @@ function pushUndoSnapshot(snapshot) {
     }
 }
 
+function pushRedoSnapshot(snapshot) {
+    redoHistoryStack.push(snapshot);
+    if (redoHistoryStack.length > UNDO_HISTORY_LIMIT) {
+        redoHistoryStack.shift();
+    }
+}
+
 function syncAspectRatioControls(w, h) {
     document.getElementById('customRatioW').value = w;
     document.getElementById('customRatioH').value = h;
@@ -3330,11 +4521,12 @@ async function applySnapshot(snapshot, options = {}) {
         }
 
         updateQrToggleButton();
+        renderObjectManagerList();
         triggerRender();
         saveSettings({ skipHistory: true });
 
         if (options.showNotification !== false) {
-            showNotification('已還原上一步', 'info');
+            showNotification(options.message || '已還原上一步', 'info');
         }
     } finally {
         isApplyingUndoState = false;
@@ -3347,8 +4539,24 @@ function handleUndoShortcut() {
         return;
     }
 
+    const currentSnapshot = createSettingsSnapshot();
+    pushRedoSnapshot(cloneJsonCompatible(currentSnapshot));
+
     const snapshot = undoHistoryStack.pop();
-    void applySnapshot(snapshot, { showNotification: true });
+    void applySnapshot(snapshot, { showNotification: true, message: '已還原上一步' });
+}
+
+function handleRedoShortcut() {
+    if (redoHistoryStack.length === 0) {
+        showNotification('沒有可重做的步驟', 'info');
+        return;
+    }
+
+    const currentSnapshot = createSettingsSnapshot();
+    pushUndoSnapshot(cloneJsonCompatible(currentSnapshot));
+
+    const snapshot = redoHistoryStack.pop();
+    void applySnapshot(snapshot, { showNotification: true, message: '已重做上一步' });
 }
 
 function applyAspectRatio(w, h, options = {}) {
@@ -3381,11 +4589,21 @@ function applyAspectRatio(w, h, options = {}) {
 
 function saveSettings(options = {}) {
     try {
+        ensureObjectState(window.nameplateState);
         syncPhilipsControlsToState();
         const snapshot = createSettingsSnapshot();
         const snapshotKey = getSnapshotKey(snapshot);
 
-        if (!options.skipHistory && !isApplyingUndoState && lastSavedSnapshot && lastSavedSnapshotKey !== snapshotKey) {
+        if (!options.skipRedoClear && !isApplyingUndoState && lastSavedSnapshot && lastSavedSnapshotKey !== snapshotKey) {
+            redoHistoryStack = [];
+        }
+
+        if (isContinuousRangeAdjusting && !rangeAdjustSnapshotPushed && lastSavedSnapshot && lastSavedSnapshotKey !== snapshotKey) {
+            pushUndoSnapshot(cloneJsonCompatible(lastSavedSnapshot));
+            rangeAdjustSnapshotPushed = true;
+        }
+
+        if (!options.skipHistory && !isApplyingUndoState && !isContinuousRangeAdjusting && lastSavedSnapshot && lastSavedSnapshotKey !== snapshotKey) {
             pushUndoSnapshot(cloneJsonCompatible(lastSavedSnapshot));
         }
 
@@ -3448,10 +4666,19 @@ function normalizeTextOffsetState(state) {
     }
 }
 
+function normalizeDefaultTextShadowState(state) {
+    const legacyShadow = Boolean(state.textShadow);
+    if (state.nameTextShadow == null) state.nameTextShadow = legacyShadow;
+    if (state.companyTextShadow == null) state.companyTextShadow = legacyShadow;
+    if (state.positionTextShadow == null) state.positionTextShadow = legacyShadow;
+}
+
 function syncControlsFromState(state, opacity = 100) {
+    ensureObjectState(state);
     normalizeFontSizes(state);
     normalizeQrState(state);
     normalizeTextOffsetState(state);
+    normalizeDefaultTextShadowState(state);
 
     document.getElementById('nameInput').value = state.name || '';
     document.getElementById('companyInput').value = state.company || '';
@@ -3462,7 +4689,7 @@ function syncControlsFromState(state, opacity = 100) {
     document.getElementById('companyFontSize').value = state.companyFontSize;
     document.getElementById('positionFontSize').value = state.positionFontSize;
     document.getElementById('bgOpacity').value = opacity;
-    document.getElementById('textShadow').checked = state.textShadow;
+    document.getElementById('textShadow').checked = Boolean(state.nameTextShadow || state.companyTextShadow || state.positionTextShadow);
 
     document.getElementById('nameOffsetX').value = state.nameOffsetX || 0;
     document.getElementById('nameOffsetY').value = state.nameOffsetY || 0;
@@ -3510,6 +4737,7 @@ function loadPreferredSettings() {
         if (saved) {
             const settings = JSON.parse(saved);
             window.nameplateState = settings.state;
+            ensureObjectState(window.nameplateState);
             normalizeFontSizes(window.nameplateState);
             normalizeQrState(window.nameplateState);
             normalizeTextOffsetState(window.nameplateState);
@@ -3562,7 +4790,9 @@ function loadPreferredSettings() {
             updateQrToggleButton();
 
             triggerRender();
+            renderObjectManagerList();
         } else {
+            ensureObjectState(window.nameplateState);
             syncControlsFromState(window.nameplateState, document.getElementById('bgOpacity').value || 100);
             bgImageDataUrl = null;
             qrCodeDataUrl = null;
@@ -3570,13 +4800,17 @@ function loadPreferredSettings() {
             syncPhilipsControlsFromState();
             updateQrToggleButton();
             applyDefaultSampleQrIfNeeded();
+            renderObjectManagerList();
         }
 
         lastSavedSnapshot = createSettingsSnapshot();
         lastSavedSnapshotKey = getSnapshotKey(lastSavedSnapshot);
         undoHistoryStack = [];
+        redoHistoryStack = [];
     } catch (err) {
         console.error('加載設置失敗:', err);
+        ensureObjectState(window.nameplateState);
+        renderObjectManagerList();
         philipsControlState = normalizePhilipsControlState();
         syncPhilipsControlsFromState();
     }
@@ -3604,6 +4838,56 @@ function showNotification(message, type = 'info') {
 }
 
 // ========== 輔助功能 ==========
+function normalizeShortcutKey(key) {
+    if (!key) {
+        return '';
+    }
+
+    // 將全形英數轉為半形，避免 Ctrl+ｚ 無法辨識
+    const normalized = Array.from(String(key)).map(char => {
+        const code = char.charCodeAt(0);
+        if (code >= 0xFF01 && code <= 0xFF5E) {
+            return String.fromCharCode(code - 0xFEE0);
+        }
+        return char;
+    }).join('');
+
+    return normalized.toLowerCase();
+}
+
+function isUndoShortcut(event) {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey) {
+        return false;
+    }
+
+    // 優先使用實體鍵位，再退回 key 值（含全形字元）
+    if (event.code === 'KeyZ') {
+        return true;
+    }
+
+    return normalizeShortcutKey(event.key) === 'z';
+}
+
+function isRedoShortcut(event) {
+    if (!(event.ctrlKey || event.metaKey)) {
+        return false;
+    }
+
+    if (event.shiftKey && event.code === 'KeyZ') {
+        return true;
+    }
+
+    if (event.shiftKey && normalizeShortcutKey(event.key) === 'z') {
+        return true;
+    }
+
+    if (!event.shiftKey && event.code === 'KeyY') {
+        return true;
+    }
+
+    return !event.shiftKey && normalizeShortcutKey(event.key) === 'y';
+}
+
 // 支援鍵盤快捷鍵
 document.addEventListener('keydown', (e) => {
     // Ctrl+S / Cmd+S - 下載
@@ -3614,13 +4898,16 @@ document.addEventListener('keydown', (e) => {
     }
 
     // Ctrl+Z / Cmd+Z - 還原上一步
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-            return;
-        }
+    if (isUndoShortcut(e)) {
         e.preventDefault();
         handleUndoShortcut();
+        return;
+    }
+
+    // Ctrl+Y / Cmd+Y 或 Ctrl+Shift+Z / Cmd+Shift+Z - 重做
+    if (isRedoShortcut(e)) {
+        e.preventDefault();
+        handleRedoShortcut();
     }
 });
 

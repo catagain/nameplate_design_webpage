@@ -52,12 +52,15 @@ body {
     color: var(--text-color);
     line-height: 1.6;
     transition: background-color 0.3s ease, color 0.3s ease;
+    overflow-x: hidden;
 }
 
 .container {
     max-width: 1600px;
     margin: 0 auto;
     padding: 20px;
+    width: 100%;
+    min-width: 0;
 }
 
 /* ========== 頭部 ========== */
@@ -118,6 +121,7 @@ header h1 {
     grid-template-columns: 380px 1fr;
     gap: 30px;
     margin-bottom: 30px;
+    min-width: 0;
 }
 
 @media (max-width: 1200px) {
@@ -143,6 +147,7 @@ header h1 {
     height: fit-content;
     position: sticky;
     top: 20px;
+    min-width: 0;
 }
 
 .edit-section {
@@ -152,6 +157,8 @@ header h1 {
     box-shadow: var(--shadow);
     border: 1px solid var(--border-light);
     transition: background-color 0.3s ease, border-color 0.3s ease;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .edit-section h2 {
@@ -395,13 +402,21 @@ input[type="checkbox"] {
 }
 
 .btn-secondary {
-    background-color: var(--secondary-color);
+    background-color: var(--primary-color);
     color: white;
 }
 
 .btn-secondary:hover {
-    background-color: #475569;
+    background-color: #1d4ed8;
     box-shadow: var(--shadow-lg);
+}
+
+#resetBtn.btn-secondary {
+    background-color: var(--secondary-color);
+}
+
+#resetBtn.btn-secondary:hover {
+    background-color: #475569;
 }
 
 /* 比例選擇器 */
@@ -612,6 +627,16 @@ input[type="checkbox"] {
     width: 100%;
 }
 
+.action-section .btn:not(#resetBtn) {
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.action-section .btn:not(#resetBtn):hover {
+    background-color: #1d4ed8;
+    box-shadow: var(--shadow-lg);
+}
+
 .upload-direct-block {
     background: #fef3c7;
     border: 1px solid #f59e0b;
@@ -643,6 +668,168 @@ input[type="checkbox"] {
     margin-top: 8px;
     font-size: 13px;
     color: var(--secondary-color);
+}
+
+.object-manager-section .custom-ratio-group {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.object-manager-section .custom-ratio-group input[type="file"] {
+    flex: 1;
+}
+
+.object-manager-section .custom-ratio-group input[type="text"],
+.object-manager-section .custom-ratio-group input[type="url"],
+.object-manager-section .custom-ratio-group input[type="file"] {
+    min-width: 0;
+    width: 100%;
+}
+
+.object-manager-toolbar {
+    margin-bottom: 8px;
+}
+
+.object-manager-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.object-manager-item {
+    min-width: 0;
+}
+
+.object-manager-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-primary);
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+}
+
+.object-manager-item {
+    cursor: grab;
+}
+
+.object-manager-item.is-dragging {
+    opacity: 0.55;
+}
+
+.object-manager-row.is-selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.object-manager-row.is-hidden {
+    opacity: 0.65;
+}
+
+.object-manager-select {
+    flex: 1 1 220px;
+    min-width: 0;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.object-manager-remove {
+    flex: 0 0 auto;
+    border: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--danger-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.object-manager-toggle {
+    flex: 0 0 auto;
+    border: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--secondary-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.object-manager-layer {
+    flex: 0 1 auto;
+    border: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.object-manager-layer:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.object-settings-panel {
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px dashed var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-primary);
+}
+
+.object-manager-list > .object-settings-panel {
+    margin-top: 0;
+    margin-bottom: 2px;
+}
+
+.object-settings-panel h3 {
+    font-size: 15px;
+    margin-bottom: 10px;
+    color: var(--text-color);
+    overflow-wrap: anywhere;
+}
+
+.object-manager-divider {
+    height: 1px;
+    margin: 14px 0;
+    background: linear-gradient(to right, transparent 0%, var(--border-light) 12%, var(--border-light) 88%, transparent 100%);
+}
+
+.object-manager-create h3 {
+    font-size: 15px;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+@media (max-width: 720px) {
+    .object-manager-section .custom-ratio-group {
+        grid-template-columns: 1fr;
+    }
+
+    .object-manager-section .custom-ratio-group .btn {
+        width: 100%;
+    }
+
+    .object-manager-toggle,
+    .object-manager-remove {
+        flex: 0 0 auto;
+    }
 }
 
 .batch-toolbar {
@@ -1373,6 +1560,18 @@ input[type="checkbox"] {
 @media (max-width: 768px) {
     .container {
         padding: 15px;
+    }
+
+    .main-content,
+    .preview-panel,
+    .preview-container,
+    .edit-panel,
+    .edit-section,
+    .form-group,
+    .custom-ratio-group,
+    .ratio-presets {
+        min-width: 0;
+        max-width: 100%;
     }
 
     header {
