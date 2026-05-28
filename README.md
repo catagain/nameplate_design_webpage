@@ -2,8 +2,6 @@
 
 這個專案是一個會議名牌編輯工具，用來快速產出桌上名牌 PNG，並可透過同一台電腦上的 Node.js 服務作為前端網站、圖片託管、Philips webhook 接收與區網桌牌掃描中介。現階段可在瀏覽器中直接編輯姓名、公司、職稱、背景、文字樣式與 QRCode，並即時預覽、下載圖片，再由整合式 server 協助呼叫 Philips 電子紙會議名牌 API。
 
-這份 README 的目的不是只放使用說明，而是把目前專案現況、待辦、串接前需要整理的資料，以及 GitHub 交接資訊集中在同一份文件，方便後續接手。
-
 ## 專案現況
 
 ### 目前已完成
@@ -105,6 +103,7 @@ namePlate_web/
 
 - 建議從 http://localhost:3001 使用，不建議長期直接開 file 模式
 - 若網路環境複雜，請保留手動裝置設定作為掃描 fallback
+- 
 #### 做法 1：部署到雲端主機
 
 適合：
@@ -317,167 +316,6 @@ server {
 - 成功時回傳 JSON
 - 前端目前只檢查 HTTP 狀態碼與是否能解析 JSON
 
-## Philips 電子紙串接規劃
-
-### 現在已經有的基礎
-- 前端可輸出 PNG Base64
-- 已有桌牌選擇 UI 與 Philips API 按鈕
-- 已有示範後端可接收 `name + metadata + image`，並提供 webhook 路由
-
-### Philips API 補上後的建議串接方式
-建議不要讓前端直接綁死 Philips API，而是保留一層自家中介服務。
-
-原因：
-- 可以隔離 Philips 認證方式
-- 可以統一裝置 mapping 邏輯
-- 可以做佇列、重試、記錄與錯誤追蹤
-- 可以避免把 vendor-specific 規則散在前端
-
-建議流程：
-1. 前端輸出名牌 PNG 或 Base64
-2. 前端呼叫自家 backend API
-3. backend 依 Philips API 要求轉格式、簽名、上傳
-4. backend 回傳裝置更新結果、task id 或 error code
-
-## 串接 Philips 前必須整理的資料
-
-這一段是後續最重要的交接清單。Philips API 補上後，至少要先拿到以下資訊，才能開始做正式整合。
-
-### API 規格
-- API Base URL
-- 測試環境與正式環境 URL
-- 認證方式，例：API Key、Bearer Token、OAuth2、簽章
-- 每個 endpoint 的 request / response 範例
-- 錯誤碼列表
-- 速率限制
-- 是否需要白名單 IP
-
-### 裝置與畫面規格
-- 電子紙型號
-- 螢幕解析度
-- 長寬比例
-- 支援的圖片格式，例：PNG、BMP、單色圖、灰階圖
-- 檔案大小限制
-- 顏色限制，例：黑白紅、灰階、全彩
-- 是否需要旋轉或特定方向輸出
-- 更新一次所需時間
-
-### 裝置識別與綁定規則
-- 裝置 ID 欄位名稱
-- 會議室 / 座位 / 人員 與裝置的 mapping 規則
-- 一筆名牌更新是指定單一 device 還是一組 device
-- 是否支援批次更新
-- 是否有查詢目前裝置狀態的 API
-
-### 同步與作業流程
-- 更新是同步完成還是非同步任務
-- 若是非同步，task id 如何查狀態
-- 是否有 callback / webhook
-- 更新失敗的重試策略
-- 是否需要排程更新或指定生效時間
-
-### 安全與維運
-- 憑證保存方式
-- 日誌需求
-- 失敗告警方式
-- 權限模型
-- 測試帳號 / 測試設備資訊
-
-## TODO
-
-### 高優先
-- 補齊 Philips 電子紙 API 規格文件
-- 確認裝置解析度、比例、顏色限制與圖片格式要求
-- 確認裝置 ID 與會議資料的對應方式
-- 決定是否透過自家 backend 中介後再呼叫 Philips API
-- 定義正式的 upload API contract 與錯誤處理格式
-
-### 中優先
-- 把目前隱藏的 API 區塊改為可由環境設定開關控制
-- 將前端 `handleUpload()` 改成呼叫正式 backend 路徑
-- 補上上傳成功 / 失敗 / 重試中的 UI 狀態
-- 補上上傳歷程或操作記錄
-- 整理會議資料來源，確認是否來自既有會議系統或 CSV / Excel
-- 規劃批次產牌流程，支援使用者上傳 `xlsx` / `csv` 等表格檔批量建立名牌
-- 評估雲端硬碟 spreadsheet 讀取方案，確認要支援的來源平台、授權方式與檔案存取權限
-- 定義批次匯入欄位規格，至少包含 `name`、`company`、`position`，並預留 `deviceId`、`meetingId` 等串接欄位
-- 規劃批次預覽、匯入錯誤提示與部分失敗重試機制
-
-### 低優先
-- 加入多版型模板
-- 加入批次匯出
-- 加入更多字型或品牌樣式 preset
-- 補前端測試與基本 lint / format 流程
-
-## 如果要正式串接，建議先定義的 backend contract
-
-前端不要直接依賴 Philips 原始規格，先定義一個內部 API，例如：
-
-```http
-POST /api/nameplates/publish
-Content-Type: application/json
-```
-
-```json
-{
-  "meetingId": "meeting-20260525-001",
-  "deviceId": "room-a-seat-01",
-  "name": "王小明",
-  "company": "範例公司",
-  "position": "Sales Director",
-  "image": "data:image/png;base64,...",
-  "requestedBy": "admin@example.com"
-}
-```
-
-建議回傳：
-
-```json
-{
-  "success": true,
-  "jobId": "publish_123456",
-  "vendor": "philips",
-  "deviceId": "room-a-seat-01",
-  "status": "queued"
-}
-```
-
-## 範例 API
-
-專案中的 `api-example.js` 提供以下示範端點：
-- `GET /health`
-- `GET /api/philips/discover`
-- `GET /api/philips/callbacks`
-- `POST /api/nameplate/upload`
-- `GET /api/nameplate/list`
-- `GET /api/nameplate/:id`
-- `DELETE /api/nameplate/:id`
-- `POST /heartbeat`
-- `POST /image-post`
-- `POST /ota-post`
-
-用途是先驗證前端、圖片託管、區網 discovery 與 Philips webhook 的整合流程，不代表 Philips 正式 production API 設計。
-
-## 開發備註
-
-### 建議啟動方式
-- 請優先使用 `npm start` 後，從 `http://localhost:3001` 開頁
-- 若使用 `file://` 直接開 `index.html`，桌牌自動掃描與 webhook 圖片託管流程不會完整工作
-
-### DHCP / Subnet 建議
-- 把 Philips 桌牌接在同一台具 DHCP 功能的 switch 上，不代表一定會落在固定 subnet
-- 能否落在同一 subnet，取決於 VLAN、DHCP scope、是否有其他 DHCP server、以及是否有靜態 IP 裝置混入
-- 若要讓自動掃描穩定，建議讓桌牌都位於同一 VLAN、同一 DHCP scope，並盡量固定在同一 `/24` 子網
-- 最穩的做法是對桌牌做 DHCP reservation，讓每台裝置依 MAC 取得固定 IP
-
-### 建議後續補的工程項目
-- `.env` 或設定檔
-- 正式 backend 專案
-- request validation
-- error handling 與 retry 機制
-- deployment / release 流程
-- Philips sandbox 測試紀錄
-
 ## GitHub
 
 - Repository: `https://github.com/catagain/nameplate_design_webpage`
@@ -489,4 +327,4 @@ MIT License
 
 ## 維護者
 
-Made by 貓又
+Made by 貓又 CatAgain
