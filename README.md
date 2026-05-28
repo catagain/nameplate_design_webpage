@@ -8,45 +8,32 @@
 
 ### 目前已完成
 - 可由同一個 Node.js / Express 服務提供前端頁面與中介 API
-- 仍可單獨開啟 `index.html` 檢查純前端畫面
-- Canvas 即時渲染名牌預覽
-- 支援姓名、公司/部門、職位三段文字
-- 支援背景色、背景圖、背景圖透明度
-- 支援姓名、公司、職位各自獨立字級調整
-- 支援文字顏色、陰影
-- 支援拖曳文字位置與 QRCode 位置
-- 支援 QRCode 圖片上傳與網址即時產生
+# 會議名牌編輯器
 
-## 專案結構
+一個前端可編輯、可匯出、可批次產圖的會議名牌工具，並內建 Node.js 中介服務處理 Philips 桌牌掃描、代理呼叫與圖片託管。
 
-```text
-namePlate_web/
-├── batch-test.csv
-├── index.html
-├── css/
-│   └── style.css
-├── js/
-│   ├── app.js
-│   ├── renderer.js
-│   └── vendor/
-│       ├── jszip.min.js
-│       ├── qrcode.min.js
-│       └── xlsx.full.min.js
-├── api-example.js
-├── package-lock.json
-├── package.json
-└── README.md
-```
+## 精簡架設方式
 
-### 主要檔案說明
-- `index.html`: 畫面結構、控制項、桌牌選擇與 Philips API 控制面板
-- `css/style.css`: 全部樣式與版面
-- `js/app.js`: 表單事件、狀態管理、LocalStorage、桌牌清單、Philips API 呼叫、深色模式、比例調整
-- `js/renderer.js`: Canvas 繪製、背景圖、文字、QRCode、匯出 Base64 / PNG
-- `js/vendor/`: 本地第三方函式庫，包含 QRCode、JSZip、SheetJS XLSX
+### 需求
+
+- Node.js 18+
+- npm
+
+### 本機啟動 (最推薦)
 
 ```bash
 npm install
+npm start
+```
+
+啟動後開啟:
+
+- http://localhost:3001
+
+### 一鍵腳本啟動
+
+Windows:
+
 ```bat
 start-nameplate.bat
 ```
@@ -58,91 +45,66 @@ chmod +x start-nameplate.sh
 ./start-nameplate.sh
 ```
 
-這兩個腳本會自動檢查 `node` / `npm`、必要時執行 `npm install`、啟動本機整合式 server，並開啟瀏覽器到可用的本機網址。
-如果 `3001` 已被占用，腳本會自動往上尋找下一個可用 port，例如 `3002`、`3003`。如果你有先設定 `PORT` 環境變數，腳本會從你指定的 port 開始往上找。
+### 常用環境變數
 
-若要讓同網段其他裝置連進來，可直接打開：
-http://你的電腦區網IP:3001
-```
+- HOST: 預設 0.0.0.0
+- PORT: 預設 3001
+- PUBLIC_BASE_URL: 對外網址 (影響上傳圖片與 callback URL)
 
-例如 `http://192.168.1.25:3001`。
+### 對外部署重點
 
-### 備用方式
-仍可直接用瀏覽器開啟 `index.html` 檢查純前端排版，但這種方式不會啟用區網桌牌自動掃描。
+- 以 Node.js 啟動服務，前面加 Nginx/Caddy/IIS 反向代理
+- 建議強制 HTTPS
+- Philips discovery 屬於區網掃描，server 需與桌牌在同一個 LAN/VLAN
 
-### 純靜態方式
-使用本地靜態伺服器。
-
-```bash
-python -m http.server 8000
-```
-
-或：
-
-```bash
-
-## 對外網開放
-
-這個專案目前最適合的對外方式，是直接部署 `api-example.js` 這個 Node.js server，讓同一個服務同時提供：
-
-- 前端頁面 `/`
-- 圖片上傳 `/api/nameplate/upload`
-### 先判斷你的需求
-
-#### 需求 A：只要讓別人從外網打開編輯器
-- 雲端 VM / VPS
-- 公司對外主機
-- Docker 容器平台
-- 如果網站部署在公有雲，通常掃不到你辦公室或會場內的桌牌
-- 這種情況建議保留「公開網站 + 區網內中介 server」兩層架構
-
-### 最小可行部署
-
-#### 1. 在對外主機上設定環境變數
-
-Windows PowerShell：
-
-```powershell
-$env:PORT=3001
-$env:HOST='0.0.0.0'
-$env:PUBLIC_BASE_URL='https://your-domain.example.com'
-npm start
-```
-
-Linux / macOS：
-
-```bash
-PORT=3001 HOST=0.0.0.0 PUBLIC_BASE_URL=https://your-domain.example.com npm start
-```
-
-`PUBLIC_BASE_URL` 很重要，因為上傳圖片後回傳的 `publicUrl` 會用這個網址，桌牌或外部裝置才能拿到正確連結。
-
-#### 2. 開放防火牆與入口
-
-至少要讓外部可連到你的 HTTP/HTTPS 入口：
-
-- 直接開 `3001` port 只適合測試
-- 正式環境建議使用 `80/443`
-- 建議在前面放 Nginx / Caddy / IIS 反向代理到本機 `3001`
-
-#### 3. 綁定網域
-
-把你的網域 DNS 指到這台主機，例如：
+## 專案架構
 
 ```text
-nameplate.your-domain.example.com -> 你的公網 IP
+namePlate_web/
+├── index.html                   # 前端 UI
+├── css/
+│   └── style.css                # 樣式
+├── js/
+│   ├── app.js                   # 前端狀態與事件、批次流程、Philips 控制
+│   ├── renderer.js              # Canvas 渲染與圖片匯出
+│   └── vendor/                  # 第三方前端函式庫
+├── api-example.js               # Node.js/Express API 與靜態服務
+├── deploy/
+│   └── nginx.nameplate.conf     # 反向代理範例
+├── uploads/                     # 上傳圖片與 callback/access log
+├── batch-test.csv               # 批次測試資料
+├── start-nameplate.bat          # Windows 啟動腳本
+├── start-nameplate.sh           # macOS/Linux 啟動腳本
+├── package.json                 # 依賴與 scripts
+└── README.md
 ```
 
-#### 4. 啟用 HTTPS
+## TODO List
 
-正式對外建議一定要用 HTTPS，原因：
+### P0 (優先處理)
 
-- 避免混合內容問題
-- 對外分享比較安全
-- 某些瀏覽器功能在 HTTPS 下相容性更好
+- 補上 API 驗證機制 (token/key)
+- 補上 rate limit 與 upload 容量限制
+- Philips proxy/discovery 錯誤碼、超時、重試策略完整化
+- 增加關鍵操作日誌與追蹤 ID
 
-### 兩種常見做法
+### P1 (近期)
 
+- 建立前端與後端自動化測試
+- 補齊 lint/format 與 CI
+- 批次流程加入部分失敗重送與完整報表
+- 裝置映射規則標準化 (deviceId/meetingId)
+
+### P2 (可排程)
+
+- 模板化版型與品牌樣式管理
+- 批次排程發布
+- 進階後台設定頁 (環境與裝置管理)
+
+## 補充
+
+- 建議從 http://localhost:3001 使用，不建議長期直接開 file 模式
+- 若網路環境複雜，請保留手動裝置設定作為掃描 fallback
 #### 做法 1：部署到雲端主機
 
 適合：
