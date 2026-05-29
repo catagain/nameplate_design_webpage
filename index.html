@@ -14,8 +14,13 @@
 
     <div class="container">
         <header>
-            <h1>會議名牌編輯器</h1>
-            <p class="subtitle">建立及下載會議桌上名牌圖片</p>
+            <div class="brand-row">
+                <div class="brand-logo" aria-hidden="true"></div>
+                <div class="brand-copy">
+                    <h1>會議桌上名牌管理系統</h1>
+                    <p class="subtitle">建立、下載及上傳會議桌上名牌圖片</p>
+                </div>
+            </div>
         </header>
 
         <div class="main-content">
@@ -507,14 +512,14 @@
                     <div class="object-settings-panel" id="objectSettingsPanel" hidden>
                         <h3 id="objectSettingsTitle">物件設定</h3>
 
-                        <div class="form-group">
-                            <label for="objectVisibleToggle">顯示此物件</label>
-                            <input type="checkbox" id="objectVisibleToggle" checked>
-                        </div>
-
                         <div class="form-group" id="objectEditTextGroup" hidden>
                             <label for="objectEditTextInput">文字內容</label>
                             <input type="text" id="objectEditTextInput" maxlength="40" placeholder="輸入文字內容">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="objectVisibleToggle">顯示此物件</label>
+                            <input type="checkbox" id="objectVisibleToggle" checked>
                         </div>
 
                         <div class="form-group" id="objectEditQrGroup" hidden>
@@ -609,8 +614,17 @@
                     <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
                 </section>
 
-                <section class="edit-section batch-section">
-                    <h2>批量輸出桌牌圖片（進階）</h2>
+                <section class="edit-section batch-section" hidden>
+                    <h2>批量生產</h2>
+
+                    <div class="form-group hint batch-status-box">
+                        <p>批量生產已改為獨立頁面，可依目前左側已完成的版型與物件設定，自動生成對應欄位。</p>
+                        <p>你可以上傳欄位正確的 CSV / XLSX，也可以直接在網頁上編輯表格後輸出。</p>
+                    </div>
+
+                    <a class="btn btn-primary" href="batch.html">前往批量生產頁</a>
+
+                    <div class="legacy-batch-panel" hidden>
 
                     <div class="form-group">
                         <label for="batchCsvInput">匯入 CSV 名單</label>
@@ -668,6 +682,7 @@
                         <button id="batchReportBtn" class="btn btn-secondary" type="button" disabled>
                             下載結果報表
                         </button>
+                    </div>
                     </div>
                 </section>
 
@@ -923,6 +938,9 @@
                     </button>
                     <button id="downloadBtn" class="btn btn-primary">
                         ⬇️ 下載為 PNG
+                    </button>
+                    <button id="openBatchPageBtn" class="btn btn-primary" type="button">
+                        批量生產
                     </button>
                     <button id="resetBtn" class="btn btn-secondary">
                         🔄 重置

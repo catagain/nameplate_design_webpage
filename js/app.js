@@ -284,9 +284,22 @@ function getSelectedObjectMeta(state = window.nameplateState) {
     return objectEntries.find(item => item.id === selectedObjectId) || null;
 }
 
-function selectObject(objectId) {
+function selectObject(objectId, options = {}) {
     selectedObjectId = objectId || null;
     renderObjectManagerList();
+
+    if (options.focusTextEditor) {
+        requestAnimationFrame(() => {
+            const textGroup = document.getElementById('objectEditTextGroup');
+            const textInput = document.getElementById('objectEditTextInput');
+            if (!textGroup || textGroup.hidden || !textInput) {
+                return;
+            }
+
+            textInput.focus();
+            textInput.select();
+        });
+    }
 }
 
 function beginContinuousRangeAdjust() {
@@ -888,6 +901,7 @@ function attachEventListeners() {
     document.getElementById('directImageUploadInput').addEventListener('change', handleDirectImageUploadPreview);
     document.getElementById('uploadImageToBothBtn').addEventListener('click', handleUploadImageToBothDisplays);
     document.getElementById('downloadBtn').addEventListener('click', handleDownload);
+    document.getElementById('openBatchPageBtn').addEventListener('click', handleOpenBatchPage);
     document.getElementById('resetBtn').addEventListener('click', handleReset);
     document.getElementById('batchCsvInput').addEventListener('change', handleBatchCsvImport);
     document.getElementById('batchTemplateBtn').addEventListener('click', handleBatchTemplateDownload);
@@ -1048,6 +1062,11 @@ function attachEventListeners() {
     document.getElementById('factoryResetBtn').addEventListener('click', handleFactoryResetPreferences);
     document.getElementById('changeIpBtn').addEventListener('click', handleChangeIpConfig);
     document.getElementById('otaBtn').addEventListener('click', handleTriggerOtaUpdate);
+}
+
+function handleOpenBatchPage() {
+    saveSettings();
+    window.location.href = 'batch.html';
 }
 
 function getClipboardImageFile(event) {
@@ -3743,9 +3762,10 @@ function handleObjectManagerClick(event) {
 
     const objectId = target.getAttribute('data-object-id');
     const action = target.getAttribute('data-action');
+    const objectMeta = getObjectEntries().find(item => item.id === objectId) || null;
 
     if (action === 'select') {
-        selectObject(objectId);
+        selectObject(objectId, { focusTextEditor: objectMeta?.type === 'text' });
         showNotification('已選取物件，可在畫布拖曳調整位置', 'info');
         return;
     }

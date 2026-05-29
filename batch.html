@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量生產 - 會議名牌編輯器</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container batch-page">
+        <header>
+            <div class="brand-row">
+                <div class="brand-logo" aria-hidden="true"></div>
+                <div class="brand-copy">
+                    <h1>批量生產會議桌牌圖片</h1>
+                    <p class="subtitle">依目前版型設定進行批次產圖</p>
+                </div>
+            </div>
+        </header>
+
+        <section class="edit-section">
+            <div class="batch-page-toolbar">
+                <a class="btn btn-secondary" href="index.html">返回編輯頁</a>
+            </div>
+
+            <div class="form-group hint batch-status-box">
+                <p id="batchStatusText">載入中...</p>
+            </div>
+        </section>
+
+        <section class="edit-section">
+            <h2>目前欄位需求</h2>
+            <p class="batch-helper-text">必填欄位來自目前可見的文字物件；可選欄位來自可見的 QRCode 物件。</p>
+            <div id="columnSchemaSummary" class="batch-schema-list"></div>
+        </section>
+
+        <section class="edit-section">
+            <h2>資料來源</h2>
+            <div class="form-group">
+                <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
+                <input
+                    type="file"
+                    id="batchCsvInput"
+                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    class="file-input"
+                >
+                <p class="batch-helper-text">檔案標題列需使用下方列出的欄位 key。欄位可多可少，但必填欄位不可缺少。若填寫 `deviceTarget`（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
+            </div>
+
+            <div class="batch-toolbar">
+                <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
+                <button id="batchDownloadCsvBtn" class="btn btn-secondary" type="button">下載目前表格 CSV</button>
+                <button id="batchAddRowBtn" class="btn btn-secondary" type="button">新增一列</button>
+                <button id="batchClearBtn" class="btn btn-secondary" type="button">清除資料</button>
+            </div>
+        </section>
+
+        <section class="edit-section">
+            <h2>批量資料表</h2>
+            <div class="batch-summary" id="batchSummary">尚未建立資料</div>
+
+            <div class="batch-preview-wrapper">
+                <table class="batch-preview-table">
+                    <thead id="batchPreviewHead"></thead>
+                    <tbody id="batchPreviewBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="edit-section">
+            <h2>版型預覽</h2>
+            <p class="batch-helper-text">批量輸出會使用下方同一個版型逐列套值輸出 PNG。</p>
+            <div class="batch-canvas-wrap">
+                <canvas id="batchCanvas" width="800" height="480"></canvas>
+            </div>
+        </section>
+
+        <section class="edit-section">
+            <div class="batch-page-toolbar">
+                <button id="batchExportBtn" class="btn btn-primary" type="button">批量輸出</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/vendor/jszip.min.js"></script>
+    <script src="js/vendor/qrcode.min.js"></script>
+    <script src="js/vendor/xlsx.full.min.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/batch-page.js"></script>
+</body>
+</html>
