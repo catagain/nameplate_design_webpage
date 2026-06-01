@@ -761,12 +761,12 @@ input[type="checkbox"] {
     width: 100%;
 }
 
-.action-section .btn:not(#resetBtn) {
+.action-section .btn:not(#resetBtn):not(.btn-success) {
     background-color: var(--primary-color);
     color: #ffffff;
 }
 
-.action-section .btn:not(#resetBtn):hover {
+.action-section .btn:not(#resetBtn):not(.btn-success):hover {
     background-color: #1d4ed8;
     box-shadow: var(--shadow-lg);
 }
