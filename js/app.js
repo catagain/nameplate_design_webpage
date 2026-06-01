@@ -27,6 +27,7 @@ const BATCH_OPTIONAL_COLUMNS = ['deviceTarget', 'deviceId', 'meetingId', 'qrUrl'
 const PHILIPS_API_PREFIX = '/api/tableside/v1';
 const PHILIPS_DISCOVERY_API = '/api/philips/discover';
 const PHILIPS_PROXY_API = '/api/philips/proxy';
+const PHILIPS_DEVICES_API = '/api/philips/devices';
 const PHILIPS_JPEG_MAX_BYTES = 750 * 1024;
 const PHILIPS_JPEG_MAX_WIDTH = 800;
 const PHILIPS_JPEG_MAX_HEIGHT = 480;
@@ -138,6 +139,16 @@ function getDefaultFontSizeFieldByObjectId(objectId) {
         'default-name': 'nameFontSize',
         'default-company': 'companyFontSize',
         'default-position': 'positionFontSize'
+    };
+
+    return mapping[objectId] || '';
+}
+
+function getDefaultTextColorFieldByObjectId(objectId) {
+    const mapping = {
+        'default-name': 'nameTextColor',
+        'default-company': 'companyTextColor',
+        'default-position': 'positionTextColor'
     };
 
     return mapping[objectId] || '';
@@ -391,6 +402,7 @@ function renderSelectedObjectSettings() {
     if (isTextObject) {
         const textField = getDefaultTextFieldByObjectId(selected.id);
         const fontSizeField = getDefaultFontSizeFieldByObjectId(selected.id);
+        const colorField = getDefaultTextColorFieldByObjectId(selected.id);
         const textValue = selected.isDefault
             ? String(window.nameplateState[textField] || '')
             : String(selected.text || '');
@@ -398,7 +410,7 @@ function renderSelectedObjectSettings() {
             ? parseInt(window.nameplateState[fontSizeField] || 48, 10)
             : parseInt(selected.fontSize || 48, 10);
         const colorValue = selected.isDefault
-            ? (window.nameplateState.textColor || '#000000')
+            ? (window.nameplateState[colorField] || window.nameplateState.textColor || '#000000')
             : (selected.color || '#000000');
         const shadowField = getDefaultTextShadowFieldByObjectId(selected.id);
         const shadowValue = selected.isDefault
@@ -536,7 +548,10 @@ function updateSelectedObjectColor(color) {
     const normalizedColor = color || '#000000';
 
     if (selected.isDefault) {
-        window.nameplateState.textColor = normalizedColor;
+        const colorField = getDefaultTextColorFieldByObjectId(selected.id);
+        if (colorField) {
+            window.nameplateState[colorField] = normalizedColor;
+        }
         document.getElementById('textColorInput').value = normalizedColor;
         document.getElementById('textColorValue').textContent = normalizedColor;
     } else {
@@ -746,14 +761,14 @@ function deleteObjectById(objectId) {
 }
 
 // ========== 初始化 ==========
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initRenderer();
     attachEventListeners();
     initSectionCollapse();
     updateTextPositionControlRanges();
     loadPreferredSettings();
     initDarkMode();
-    initPhilipsDeviceDiscovery();
+    await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
 });
@@ -1342,11 +1357,22 @@ function normalizeBatchDeviceTarget(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+function extractDeviceHostFromTarget(value) {
+    const match = String(value || '').trim().match(/\(([^()]+)\)\s*$/);
+    if (!match) {
+        return '';
+    }
+
+    return normalizeBatchDeviceTarget(match[1]);
+}
+
 function findPhilipsDeviceByBatchTarget(target) {
     const normalizedTarget = normalizeBatchDeviceTarget(target);
     if (!normalizedTarget) {
         return null;
     }
+
+    const bracketHost = extractDeviceHostFromTarget(target);
 
     const parsedUrl = tryParseUrl(target);
     const parsedTargetHost = parsedUrl ? normalizeBatchDeviceTarget(parsedUrl.hostname) : '';
@@ -1365,6 +1391,7 @@ function findPhilipsDeviceByBatchTarget(target) {
             || normalizedTarget === label
             || normalizedTarget === host
             || normalizedTarget === deviceCode
+            || (bracketHost && bracketHost === host)
             || hostMatchesUrl;
     }) || null;
 }
@@ -1499,6 +1526,71 @@ async function fetchFromPhilipsApi(path, options = {}) {
     throw lastError || new Error(`無法連線到本機 Philips server: ${path}`);
 }
 
+async function fetchServerManagedPhilipsDevices() {
+    if (window.location.protocol === 'file:') {
+        return [];
+    }
+
+    const response = await fetchFromPhilipsApi(PHILIPS_DEVICES_API, { cache: 'no-store' });
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+    }
+
+    const list = Array.isArray(payload.data) ? payload.data : [];
+    return list
+        .map(device => normalizeDeviceRecord(device, 'manual'))
+        .filter(device => device.host || device.label);
+}
+
+async function persistManualDeviceToServer(device) {
+    if (window.location.protocol === 'file:') {
+        return;
+    }
+
+    const response = await fetchFromPhilipsApi(PHILIPS_DEVICES_API, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ device })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+    }
+}
+
+async function deleteManualDeviceFromServer(deviceId) {
+    if (window.location.protocol === 'file:') {
+        return;
+    }
+
+    const encodedId = encodeURIComponent(String(deviceId || ''));
+    const response = await fetchFromPhilipsApi(`${PHILIPS_DEVICES_API}/${encodedId}`, {
+        method: 'DELETE'
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+    }
+}
+
+async function refreshServerManagedDevices(notifyOnFailure = false) {
+    try {
+        const manualDevices = await fetchServerManagedPhilipsDevices();
+        philipsControlState.manualDevices = manualDevices;
+        rebuildAvailableDevices();
+        syncPhilipsControlsFromState();
+        saveSettings();
+    } catch (error) {
+        if (notifyOnFailure) {
+            showNotification(`讀取伺服器桌牌設定失敗: ${error.message}`, 'error');
+        }
+    }
+}
+
 function applyDiscoveryResult(payload) {
     philipsControlState.discoveredDevices = Array.isArray(payload.devices)
         ? payload.devices.map(device => normalizeDeviceRecord(device, 'discovered'))
@@ -1580,6 +1672,8 @@ async function initPhilipsDeviceDiscovery() {
         philipsControlState.serverPort = clampNumber(window.location.port, 1, 65535, philipsControlState.serverPort || 3001);
     }
 
+    await refreshServerManagedDevices(false);
+
     await refreshPhilipsDeviceList(false, false);
 
     if (philipsDiscoveryIntervalId) {
@@ -1607,11 +1701,18 @@ function handleDeviceSelectionChange(event) {
     saveSettings();
 }
 
-function handleSaveDevice() {
+async function handleSaveDevice() {
     const draft = normalizeDeviceRecord(readDeviceDraftFromForm(), 'manual');
 
     if (!draft.label || !draft.host) {
         showNotification('請輸入桌牌名稱與 IP / 網域', 'error');
+        return;
+    }
+
+    try {
+        await persistManualDeviceToServer(draft);
+    } catch (error) {
+        showNotification(`儲存桌牌設定失敗: ${error.message}`, 'error');
         return;
     }
 
@@ -1630,10 +1731,23 @@ function handleSaveDevice() {
     showNotification(`已儲存桌牌設定: ${draft.label}`, 'success');
 }
 
-function handleDeleteDevice() {
+async function handleDeleteDevice() {
     const selectedDevice = getSelectedDevice();
     if (!selectedDevice) {
         showNotification('目前沒有可刪除的桌牌', 'info');
+        return;
+    }
+
+    const existsInManualList = philipsControlState.manualDevices.some(device => device.id === selectedDevice.id);
+    if (!existsInManualList) {
+        showNotification('目前選擇的是自動掃描桌牌，沒有可刪除的已儲存設定', 'info');
+        return;
+    }
+
+    try {
+        await deleteManualDeviceFromServer(selectedDevice.id);
+    } catch (error) {
+        showNotification(`刪除桌牌設定失敗: ${error.message}`, 'error');
         return;
     }
 
@@ -1675,13 +1789,23 @@ function syncDeviceEditorFields(device) {
     document.getElementById('deviceProtocolSelect').value = device.protocol || 'http';
 }
 
+function formatDeviceTargetDisplay(device) {
+    const label = String(device?.label || device?.device_id || '').trim();
+    const host = String(device?.host || '').trim();
+    if (label && host && label !== host) {
+        return `${label}(${host})`;
+    }
+
+    return label || host || String(device?.id || '').trim();
+}
+
 function renderDeviceOptions() {
     const select = document.getElementById('deviceSelect');
     const placeholder = '<option value="">請先選擇桌牌</option>';
     const options = philipsControlState.devices
         .map(device => {
             const suffix = device.source === 'manual' ? ' (手動)' : '';
-            return `<option value="${escapeHtml(device.id)}">${escapeHtml(device.label || device.device_id || device.host)}${suffix}</option>`;
+            return `<option value="${escapeHtml(device.id)}">${escapeHtml(formatDeviceTargetDisplay(device))}${suffix}</option>`;
         })
         .join('');
 
@@ -3413,6 +3537,9 @@ function handlePositionFontSizeChange(e) {
 function handleTextColorChange(e) {
     const color = e.target.value;
     window.nameplateState.textColor = color;
+    window.nameplateState.nameTextColor = color;
+    window.nameplateState.companyTextColor = color;
+    window.nameplateState.positionTextColor = color;
     document.getElementById('textColorValue').textContent = color;
     renderSelectedObjectSettings();
     triggerRender();
@@ -4212,6 +4339,9 @@ function handleReset() {
             companyFontSize: 50,
             positionFontSize: 50,
             textColor: '#000000',
+            nameTextColor: '#000000',
+            companyTextColor: '#000000',
+            positionTextColor: '#000000',
             textShadow: false,
             nameTextShadow: false,
             companyTextShadow: false,
@@ -4291,6 +4421,9 @@ function handlePresetClick(e) {
     window.nameplateState.companyFontSize = preset.companyFontSize;
     window.nameplateState.positionFontSize = preset.positionFontSize;
     window.nameplateState.textColor = preset.textColor;
+    window.nameplateState.nameTextColor = preset.textColor;
+    window.nameplateState.companyTextColor = preset.textColor;
+    window.nameplateState.positionTextColor = preset.textColor;
     window.nameplateState.textShadow = preset.textShadow;
     window.nameplateState.nameTextShadow = preset.textShadow;
     window.nameplateState.companyTextShadow = preset.textShadow;
@@ -4633,7 +4766,12 @@ function saveSettings(options = {}) {
             bgImageDataUrl: bgImageDataUrl,
             qrCodeDataUrl: qrCodeDataUrl,
             aspectRatio: currentAspectRatio,
-            philips: philipsControlState
+            philips: {
+                ...philipsControlState,
+                devices: [],
+                discoveredDevices: [],
+                manualDevices: []
+            }
         };
         localStorage.setItem('nameplateSettings', JSON.stringify(settings));
 
@@ -4693,12 +4831,20 @@ function normalizeDefaultTextShadowState(state) {
     if (state.positionTextShadow == null) state.positionTextShadow = legacyShadow;
 }
 
+function normalizeDefaultTextColorState(state) {
+    const legacyColor = String(state.textColor || '#000000');
+    if (!state.nameTextColor) state.nameTextColor = legacyColor;
+    if (!state.companyTextColor) state.companyTextColor = legacyColor;
+    if (!state.positionTextColor) state.positionTextColor = legacyColor;
+}
+
 function syncControlsFromState(state, opacity = 100) {
     ensureObjectState(state);
     normalizeFontSizes(state);
     normalizeQrState(state);
     normalizeTextOffsetState(state);
     normalizeDefaultTextShadowState(state);
+    normalizeDefaultTextColorState(state);
 
     document.getElementById('nameInput').value = state.name || '';
     document.getElementById('companyInput').value = state.company || '';

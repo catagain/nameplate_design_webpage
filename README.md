@@ -2,6 +2,8 @@
 
 本專案是一套前端可視化名牌編輯器，搭配 Node.js 中介服務，支援單張編輯、Philips 桌牌控制與批量生產流程。
 
+目前桌牌對照資料（桌牌名稱與 IP）已改為伺服器端保存，不再以使用者瀏覽器本機資料為主。
+
 ## 目前進度
 
 ### 已完成
@@ -16,6 +18,11 @@
   - 後端 proxy：`/api/philips/proxy`
   - 區網 discovery（同網段掃描）
   - callback 路由：`/heartbeat`、`/image-post`、`/ota-post`
+  - 桌牌設定伺服器儲存：
+    - `GET /api/philips/devices`
+    - `POST /api/philips/devices`
+    - `DELETE /api/philips/devices/:id`
+  - 桌牌下拉顯示格式：`桌牌名稱(IP)`
 
 - 批量生產（新版）
   - 獨立分頁：`batch.html`
@@ -29,12 +36,19 @@
   - 新增欄位 `deviceTarget`（桌牌名稱或 IP）
     - 欄位固定在最右側
     - ZIP 依 `deviceTarget` 自動分資料夾
+    - 支援下拉建議（可手動輸入）
+    - 可解析 `桌牌名稱(IP)` 並對應桌牌
+  - 批量推送 Philips 時：
+    - 使用 baseline-like JPEG 流程（800x480、壓縮上限控制）
+    - 同步更新 A/B 兩面（沿用主頁雙面同步邏輯）
 
 - UI / UX 調整
   - 主頁舊內嵌批量區塊已隱藏
   - 主頁按鈕導向獨立批量頁
   - 批量頁主標題：`批量生產會議桌牌圖片`
   - 批量頁底部主按鈕文案：`批量輸出`
+  - 批量頁「目前欄位需求」區塊已隱藏
+  - 批量頁新增列控制改為表頭操作欄綠色粗體 `+`
   - 標頭加入左上角 Logo（依 theme 切換）
     - Light: `images/logo_Black.png.webp`
     - Dark: `images/LOGO.png.webp`
@@ -93,6 +107,9 @@ namePlate_web/
 ├── deploy/
 │   └── nginx.nameplate.conf    # 反向代理範例
 ├── uploads/                    # 上傳與 callback/access 記錄
+│   ├── philips-devices.json    # 桌牌設定（名稱/IP/協定/port）伺服器端儲存
+│   ├── philips-callbacks.json
+│   └── upload-access-log.json
 ├── batch-test.csv              # 批量測試資料
 ├── start-nameplate.bat
 ├── start-nameplate.sh
@@ -109,7 +126,6 @@ namePlate_web/
 
 ### P1
 
-- 批量資料與桌牌映射規則（deviceTarget/deviceId）一致化
 - 前後端自動化測試
 - lint / format / CI
 
@@ -118,6 +134,35 @@ namePlate_web/
 - 模板管理與品牌樣式配置
 - 批量排程發布
 - 進階後台設定頁
+
+## 桌牌設定存放與網路建議
+
+### 現在設定是存在哪裡？
+
+- 目前桌牌設定（名稱/IP 對照）是存在伺服器端檔案：`uploads/philips-devices.json`。
+- 前端 localStorage 仍會保存使用者個人的版型編輯狀態（顏色、物件、背景等），但桌牌清單以伺服器資料為主。
+
+### 名稱對 IP 對照是否一定要固定 IP？
+
+- 如果你是用「名稱 -> IP」直接對應，實務上建議要固定 IP，否則 DHCP 重新分配後，名稱可能會指到舊 IP，造成推送失敗或送錯裝置。
+
+### 建議做法（優先順序）
+
+1. 最推薦：在路由器做 DHCP Reservation（綁 MAC 配固定 IP）
+2. 次選：在每台桌牌內設定 Static IP
+3. 同時保留桌牌名稱，讓操作人員以名稱辨識，系統以 IP 連線
+
+### 如何執行 DHCP Reservation
+
+1. 到路由器管理頁找到 DHCP / Address Reservation
+2. 針對每台桌牌填入 MAC 位址並指定固定 IP
+3. 讓桌牌重新取得租約（重開機或 renew）
+4. 在本系統儲存桌牌名稱與該固定 IP
+
+### 何時不用固定 IP？
+
+- 若未來改成用 Philips `device_id` 或 DNS 名稱做主要識別，並在發送前做即時解析，可降低對固定 IP 的依賴。
+- 但在目前「名稱+IP 直接對照」模式下，固定 IP 仍是最穩定做法。
 
 ## 授權
 

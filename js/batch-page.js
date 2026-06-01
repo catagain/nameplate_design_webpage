@@ -2,19 +2,36 @@
 
 const STORAGE_KEY = 'nameplateSettings';
 const DEFAULT_OBJECT_IDS = ['default-name', 'default-company', 'default-position', 'default-qrcode'];
+const PHILIPS_API_PREFIX = '/api/tableside/v1';
+const PHILIPS_PROXY_API = '/api/philips/proxy';
+const PHILIPS_DEVICES_API = '/api/philips/devices';
+const PHILIPS_JPEG_MAX_BYTES = 750 * 1024;
+const PHILIPS_JPEG_MAX_WIDTH = 800;
+const PHILIPS_JPEG_MAX_HEIGHT = 480;
+const DEVICE_TARGET_SUGGESTION_LIMIT = 40;
+const DUAL_DISPLAY_UPDATE_DELAY_MS = 350;
 
 const batchState = {
     template: null,
     schema: null,
     rows: [],
     qrCache: new Map(),
-    renderer: null
+    renderer: null,
+    philips: {
+        serverPort: 3001,
+        publicBaseUrl: '',
+        imgDither: false,
+        displayCallbackUrl: '/image-post',
+        devices: []
+    }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         initThemeFromMainPage();
         batchState.template = loadTemplateFromStorage();
+        normalizePhilipsSettings();
+        await loadServerManagedDevices();
         batchState.schema = buildSchema(batchState.template.state);
         window.nameplateState = cloneJson(batchState.template.state);
         ensureObjectState(window.nameplateState);
@@ -90,6 +107,9 @@ function ensureObjectState(state) {
 function normalizeTemplateState(state) {
     if (!state.bgColor) state.bgColor = '#ffffff';
     if (!state.textColor) state.textColor = '#000000';
+    if (!state.nameTextColor) state.nameTextColor = state.textColor;
+    if (!state.companyTextColor) state.companyTextColor = state.textColor;
+    if (!state.positionTextColor) state.positionTextColor = state.textColor;
     if (!state.name) state.name = '名子';
     if (!state.company) state.company = '公司名稱';
     if (!state.position) state.position = '職位名稱';
@@ -123,6 +143,9 @@ function getDefaultTemplateState() {
         companyFontSize: 50,
         positionFontSize: 50,
         textColor: '#000000',
+        nameTextColor: '#000000',
+        companyTextColor: '#000000',
+        positionTextColor: '#000000',
         textShadow: false,
         nameTextShadow: false,
         companyTextShadow: false,
@@ -158,7 +181,8 @@ function loadTemplateFromStorage() {
             opacity: 100,
             bgImageDataUrl: null,
             qrCodeDataUrl: null,
-            aspectRatio: { w: 5, h: 3, canvasWidth: 800, canvasHeight: 480 }
+            aspectRatio: { w: 5, h: 3, canvasWidth: 800, canvasHeight: 480 },
+            philips: null
         };
     }
 
@@ -171,7 +195,423 @@ function loadTemplateFromStorage() {
         opacity: parseInt(parsed.opacity || 100, 10) || 100,
         bgImageDataUrl: parsed.bgImageDataUrl || null,
         qrCodeDataUrl: parsed.qrCodeDataUrl || null,
-        aspectRatio: parsed.aspectRatio || { w: 5, h: 3, canvasWidth: 800, canvasHeight: 480 }
+        aspectRatio: parsed.aspectRatio || { w: 5, h: 3, canvasWidth: 800, canvasHeight: 480 },
+        philips: parsed.philips || null
+    };
+}
+
+function clampNumber(value, min, max, fallback) {
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+}
+
+function tryParseUrl(value) {
+    try {
+        return new URL(value);
+    } catch (error) {
+        return null;
+    }
+}
+
+function normalizeBatchDeviceTarget(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function extractDeviceHostFromTarget(value) {
+    const match = String(value || '').trim().match(/\(([^()]+)\)\s*$/);
+    if (!match) {
+        return '';
+    }
+
+    return normalizeBatchDeviceTarget(match[1]);
+}
+
+function buildDisplayImageUrl(baseUrl, target) {
+    try {
+        const parsed = new URL(baseUrl, window.location.origin);
+        parsed.searchParams.set('np_target', target);
+        parsed.searchParams.set('np_ts', Date.now().toString());
+        return parsed.toString();
+    } catch (error) {
+        const separator = String(baseUrl).includes('?') ? '&' : '?';
+        return `${baseUrl}${separator}np_target=${encodeURIComponent(target)}&np_ts=${Date.now()}`;
+    }
+}
+
+function buildDisplayCallbackUrl(target) {
+    const baseCallback = batchState.philips.displayCallbackUrl || '/image-post';
+
+    try {
+        const parsed = new URL(baseCallback, window.location.origin);
+        parsed.searchParams.set('side', target);
+        if (!/^https?:/i.test(baseCallback)) {
+            return `${parsed.pathname}${parsed.search}`;
+        }
+
+        return parsed.toString();
+    } catch (error) {
+        const separator = String(baseCallback).includes('?') ? '&' : '?';
+        return `${baseCallback}${separator}side=${encodeURIComponent(target)}`;
+    }
+}
+
+function normalizePhilipsDevice(device = {}) {
+    const protocol = device.protocol === 'https' ? 'https' : 'http';
+    const host = String(device.host || '').trim();
+    const port = clampNumber(device.port || (protocol === 'https' ? 443 : 80), 1, 65535, protocol === 'https' ? 443 : 80);
+    if (!host) {
+        return null;
+    }
+
+    return {
+        id: device.id || `${protocol}://${host}:${port}`,
+        protocol,
+        host,
+        port,
+        label: String(device.label || '').trim(),
+        device_id: String(device.device_id || '').trim()
+    };
+}
+
+function collectPhilipsDevices() {
+    const state = batchState.template && batchState.template.philips ? batchState.template.philips : null;
+    if (!state || typeof state !== 'object') {
+        return [];
+    }
+
+    const fromList = [];
+    const candidateLists = [state.devices, state.discoveredDevices, state.manualDevices];
+    candidateLists.forEach((list) => {
+        if (!Array.isArray(list)) {
+            return;
+        }
+
+        list.forEach((item) => {
+            const normalized = normalizePhilipsDevice(item);
+            if (normalized) {
+                fromList.push(normalized);
+            }
+        });
+    });
+
+    const uniqueMap = new Map();
+    fromList.forEach((device) => {
+        uniqueMap.set(device.id, device);
+    });
+
+    return Array.from(uniqueMap.values());
+}
+
+function normalizePhilipsSettings() {
+    const state = batchState.template && batchState.template.philips ? batchState.template.philips : {};
+    const serverPort = clampNumber(state.serverPort || 3001, 1, 65535, 3001);
+    batchState.philips = {
+        serverPort,
+        publicBaseUrl: String(state.publicBaseUrl || '').trim(),
+        imgDither: Boolean(state.imgDither),
+        displayCallbackUrl: String(state.displayCallbackUrl || '/image-post').trim() || '/image-post',
+        devices: collectPhilipsDevices()
+    };
+    renderDeviceTargetSuggestions();
+}
+
+async function loadServerManagedDevices() {
+    if (window.location.protocol === 'file:') {
+        return;
+    }
+
+    try {
+        const response = await fetchFromPhilipsApi(PHILIPS_DEVICES_API, { cache: 'no-store' });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+        }
+
+        const list = Array.isArray(payload.data) ? payload.data : [];
+        const map = new Map(batchState.philips.devices.map(device => [device.id, device]));
+        list.forEach((item) => {
+            const normalized = normalizePhilipsDevice(item);
+            if (normalized) {
+                map.set(normalized.id, normalized);
+            }
+        });
+
+        batchState.philips.devices = Array.from(map.values());
+        renderDeviceTargetSuggestions();
+    } catch (error) {
+        console.warn('讀取伺服器桌牌設定失敗:', error);
+    }
+}
+
+function formatDeviceTargetDisplay(device) {
+    const label = String(device?.label || device?.device_id || '').trim();
+    const host = String(device?.host || '').trim();
+    if (label && host && label !== host) {
+        return `${label}(${host})`;
+    }
+
+    return label || host || String(device?.id || '').trim();
+}
+
+function renderDeviceTargetSuggestions() {
+    const datalist = document.getElementById('deviceTargetSuggestions');
+    if (!datalist) {
+        return;
+    }
+
+    const options = new Map();
+
+    batchState.philips.devices.forEach((device) => {
+        [formatDeviceTargetDisplay(device), device.host, device.id, device.device_id].forEach((candidate) => {
+            const value = String(candidate || '').trim();
+            const key = normalizeBatchDeviceTarget(value);
+            if (!value || !key || options.has(key)) {
+                return;
+            }
+
+            options.set(key, value);
+        });
+    });
+
+    datalist.innerHTML = Array.from(options.values())
+        .slice(0, DEVICE_TARGET_SUGGESTION_LIMIT)
+        .map((value) => `<option value="${escapeHtml(value)}"></option>`)
+        .join('');
+}
+
+function collectPhilipsApiBaseCandidates() {
+    const candidates = [];
+    const seen = new Set();
+
+    function addCandidate(urlLike) {
+        const parsed = tryParseUrl(urlLike);
+        if (!parsed) {
+            return;
+        }
+
+        const origin = parsed.origin;
+        if (seen.has(origin)) {
+            return;
+        }
+
+        seen.add(origin);
+        candidates.push(origin);
+    }
+
+    if (window.location.protocol !== 'file:') {
+        addCandidate(window.location.origin);
+    }
+
+    if (batchState.philips.publicBaseUrl) {
+        addCandidate(batchState.philips.publicBaseUrl);
+    }
+
+    addCandidate(`http://127.0.0.1:${batchState.philips.serverPort}`);
+    addCandidate(`http://localhost:${batchState.philips.serverPort}`);
+
+    return candidates;
+}
+
+async function fetchFromPhilipsApi(path, options = {}) {
+    const candidates = collectPhilipsApiBaseCandidates();
+    let lastError = null;
+
+    for (const baseUrl of candidates) {
+        const url = new URL(path, `${baseUrl.replace(/\/$/, '')}/`).toString();
+        try {
+            const response = await fetch(url, options);
+            if (response.status === 404) {
+                continue;
+            }
+            return response;
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('找不到可用的 Philips API 服務位址');
+}
+
+function findPhilipsDeviceByBatchTarget(target) {
+    const normalizedTarget = normalizeBatchDeviceTarget(target);
+    if (!normalizedTarget) {
+        return null;
+    }
+
+    const bracketHost = extractDeviceHostFromTarget(target);
+
+    const parsedUrl = tryParseUrl(target);
+    const parsedTargetHost = parsedUrl ? normalizeBatchDeviceTarget(parsedUrl.hostname) : '';
+    const parsedTargetPort = parsedUrl ? String(clampNumber(parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80), 1, 65535, 80)) : '';
+
+    const matched = batchState.philips.devices.find((device) => {
+        const deviceId = normalizeBatchDeviceTarget(device.id);
+        const label = normalizeBatchDeviceTarget(device.label);
+        const host = normalizeBatchDeviceTarget(device.host);
+        const deviceCode = normalizeBatchDeviceTarget(device.device_id);
+        const hostMatchesUrl = parsedUrl
+            ? host === parsedTargetHost && String(clampNumber(device.port, 1, 65535, 80)) === parsedTargetPort
+            : false;
+
+        return normalizedTarget === deviceId
+            || normalizedTarget === label
+            || normalizedTarget === host
+            || normalizedTarget === deviceCode
+            || (bracketHost && bracketHost === host)
+            || hostMatchesUrl;
+    });
+
+    if (matched) {
+        return matched;
+    }
+
+    // fallback: 允許直接輸入 IP 或 host[:port]
+    if (parsedUrl && parsedUrl.hostname) {
+        return normalizePhilipsDevice({
+            protocol: parsedUrl.protocol === 'https:' ? 'https' : 'http',
+            host: parsedUrl.hostname,
+            port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+            label: String(target || '').trim()
+        });
+    }
+
+    const hostPortMatch = String(target || '').trim().match(/^([^:\s]+)(?::(\d{1,5}))?$/);
+    if (!hostPortMatch) {
+        return null;
+    }
+
+    return normalizePhilipsDevice({
+        protocol: 'http',
+        host: hostPortMatch[1],
+        port: hostPortMatch[2] || 80,
+        label: String(target || '').trim()
+    });
+}
+
+async function uploadNameplateImageForRow(row, jpegDataUrl) {
+    const response = await fetchFromPhilipsApi('/api/nameplate/upload', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: row.name || 'nameplate',
+            company: row.company || '',
+            position: row.position || '',
+            image: jpegDataUrl,
+            format: 'jpeg',
+            timestamp: new Date().toISOString()
+        })
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.success || !payload.data || !payload.data.publicUrl) {
+        throw new Error(payload.message || payload.error || `上傳圖片失敗（HTTP ${response.status}）`);
+    }
+
+    return payload.data.publicUrl;
+}
+
+async function performPhilipsRequestForDevice(device, path, options = {}) {
+    const response = await fetchFromPhilipsApi(PHILIPS_PROXY_API, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        },
+        body: JSON.stringify({
+            device,
+            path,
+            method: options.method || 'GET',
+            body: options.body || null
+        })
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
+    }
+
+    return payload;
+}
+
+function waitForDualDisplayGap() {
+    return new Promise(resolve => {
+        setTimeout(resolve, DUAL_DISPLAY_UPDATE_DELAY_MS);
+    });
+}
+
+async function pushRowToPhilipsDevice(row, philipsJpegDataUrl) {
+    const targetText = String(row.deviceTarget || '').trim();
+    if (!targetText) {
+        return {
+            skipped: true,
+            message: '未填桌牌資訊，僅輸出圖片檔'
+        };
+    }
+
+    const device = findPhilipsDeviceByBatchTarget(targetText);
+    if (!device) {
+        return {
+            skipped: true,
+            message: `找不到桌牌：${targetText}`
+        };
+    }
+
+    const publicUrl = await uploadNameplateImageForRow(row, philipsJpegDataUrl);
+    const imageTargetUrlA = buildDisplayImageUrl(publicUrl, 'a');
+    const imageTargetUrlB = buildDisplayImageUrl(publicUrl, 'b');
+    const displayCallbackUrlA = buildDisplayCallbackUrl('a');
+    const displayCallbackUrlB = buildDisplayCallbackUrl('b');
+    const requestBody = {
+        img_target_url: imageTargetUrlA,
+        img_dither: batchState.philips.imgDither ? 1 : 0,
+        display_callback_url: displayCallbackUrlA
+    };
+    const sideResults = {
+        targetA: null,
+        targetB: null
+    };
+    const sideErrors = [];
+
+    try {
+        sideResults.targetA = await performPhilipsRequestForDevice(device, `${PHILIPS_API_PREFIX}/display/image/a`, {
+            method: 'PUT',
+            body: requestBody
+        });
+    } catch (error) {
+        sideErrors.push(`A 面更新失敗: ${error.message}`);
+    }
+
+    await waitForDualDisplayGap();
+
+    try {
+        sideResults.targetB = await performPhilipsRequestForDevice(device, `${PHILIPS_API_PREFIX}/display/image/b`, {
+            method: 'PUT',
+            body: {
+                ...requestBody,
+                img_target_url: imageTargetUrlB,
+                display_callback_url: displayCallbackUrlB
+            }
+        });
+    } catch (error) {
+        sideErrors.push(`B 面更新失敗: ${error.message}`);
+    }
+
+    if (sideErrors.length > 0) {
+        throw new Error(sideErrors.join(' | '));
+    }
+
+    return {
+        skipped: false,
+        imageTargetUrl: publicUrl,
+        imageTargetUrlA,
+        imageTargetUrlB,
+        displayCallbackUrlA,
+        displayCallbackUrlB,
+        ...sideResults,
+        message: `已更新桌牌：${device.label || device.host}`
     };
 }
 
@@ -338,10 +778,9 @@ function addEmptyRow() {
 }
 
 function validateRow(row) {
-    const missing = batchState.schema.required.filter((column) => !String(row[column.key] || '').trim());
     return {
-        valid: missing.length === 0,
-        missing
+        valid: true,
+        missing: []
     };
 }
 
@@ -356,8 +795,7 @@ function updateSummary() {
         return;
     }
 
-    const validCount = batchState.rows.filter((row) => validateRow(row).valid).length;
-    node.textContent = `共 ${batchState.rows.length} 列，可輸出 ${validCount} 列，需補資料 ${batchState.rows.length - validCount} 列`;
+    node.textContent = `共 ${batchState.rows.length} 列，全部可輸出（空白欄位會維持空白）`;
 }
 
 function renderTable() {
@@ -373,7 +811,16 @@ function renderTable() {
             <th>列</th>
             ${batchState.schema.all.map((column) => `<th>${escapeHtml(column.label)}<br><small>${escapeHtml(column.key)}</small></th>`).join('')}
             <th>狀態</th>
-            <th>操作</th>
+            <th>
+                操作
+                <button
+                    type="button"
+                    class="batch-row-plus-btn"
+                    data-action="add-row"
+                    title="新增一列"
+                    aria-label="新增一列"
+                >+</button>
+            </th>
         </tr>
     `;
 
@@ -384,18 +831,17 @@ function renderTable() {
     }
 
     body.innerHTML = batchState.rows.map((row, rowIndex) => {
-        const validation = validateRow(row);
-        const statusText = validation.valid
-            ? '<span class="batch-status-pill valid">可輸出</span>'
-            : `<span class="batch-status-pill invalid">缺欄位：${escapeHtml(validation.missing.map((item) => item.key).join(', '))}</span>`;
+        const statusText = '<span class="batch-status-pill valid">可輸出</span>';
 
         const cells = batchState.schema.all.map((column) => {
             const inputType = column.type === 'url' ? 'url' : 'text';
+            const listAttr = column.key === 'deviceTarget' ? 'list="deviceTargetSuggestions"' : '';
             return `
                 <td>
                     <input
                         class="batch-inline-input"
                         type="${inputType}"
+                        ${listAttr}
                         value="${escapeHtml(row[column.key] || '')}"
                         data-row-index="${rowIndex}"
                         data-key="${escapeHtml(column.key)}"
@@ -436,6 +882,15 @@ function attachEventListeners() {
     document.getElementById('batchDownloadCsvBtn').addEventListener('click', downloadCurrentTableCsv);
     document.getElementById('batchCsvInput').addEventListener('change', handleSpreadsheetUpload);
     document.getElementById('batchExportBtn').addEventListener('click', handleBatchExport);
+    document.getElementById('batchPreviewHead').addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action="add-row"]');
+        if (!btn) {
+            return;
+        }
+
+        addEmptyRow();
+        setStatus('已新增一列');
+    });
 
     document.getElementById('batchPreviewBody').addEventListener('input', (event) => {
         const input = event.target.closest('input[data-row-index][data-key]');
@@ -598,11 +1053,6 @@ function buildRowsFromSheetRows(rows) {
 
     const headers = rows[0].map((header) => String(header || '').trim());
     const allowedKeys = new Set(batchState.schema.all.map((column) => column.key));
-    const missingRequired = batchState.schema.required.filter((column) => !headers.includes(column.key));
-    if (missingRequired.length > 0) {
-        throw new Error(`缺少必填欄位: ${missingRequired.map((item) => item.key).join(', ')}`);
-    }
-
     const unknownHeaders = headers.filter((header) => header && !allowedKeys.has(header));
     if (unknownHeaders.length > 0) {
         throw new Error(`存在未支援欄位: ${unknownHeaders.join(', ')}`);
@@ -665,6 +1115,45 @@ function waitForMs(ms) {
 async function dataUrlToBlob(dataUrl) {
     const response = await fetch(dataUrl);
     return response.blob();
+}
+
+function dataUrlByteLength(dataUrl) {
+    const base64 = dataUrl.split(',')[1] || '';
+    return Math.ceil((base64.length * 3) / 4);
+}
+
+function exportPhilipsJpegDataUrlFromBatchCanvas() {
+    const sourceCanvas = document.getElementById('batchCanvas');
+    if (!sourceCanvas) {
+        throw new Error('找不到批量預覽畫布');
+    }
+
+    const targetCanvas = document.createElement('canvas');
+    targetCanvas.width = PHILIPS_JPEG_MAX_WIDTH;
+    targetCanvas.height = PHILIPS_JPEG_MAX_HEIGHT;
+    const context = targetCanvas.getContext('2d');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+
+    const scale = Math.min(
+        PHILIPS_JPEG_MAX_WIDTH / sourceCanvas.width,
+        PHILIPS_JPEG_MAX_HEIGHT / sourceCanvas.height
+    );
+    const drawWidth = Math.max(1, Math.round(sourceCanvas.width * scale));
+    const drawHeight = Math.max(1, Math.round(sourceCanvas.height * scale));
+    const drawX = Math.round((PHILIPS_JPEG_MAX_WIDTH - drawWidth) / 2);
+    const drawY = Math.round((PHILIPS_JPEG_MAX_HEIGHT - drawHeight) / 2);
+    context.drawImage(sourceCanvas, drawX, drawY, drawWidth, drawHeight);
+
+    const qualities = [0.92, 0.86, 0.8, 0.72, 0.64, 0.56];
+    for (const quality of qualities) {
+        const dataUrl = targetCanvas.toDataURL('image/jpeg', quality);
+        if (dataUrlByteLength(dataUrl) <= PHILIPS_JPEG_MAX_BYTES) {
+            return dataUrl;
+        }
+    }
+
+    throw new Error('目前名牌轉成 JPEG 後超過 750KB，請降低背景複雜度或調整尺寸');
 }
 
 async function generateQrCodeDataUrl(qrUrl) {
@@ -804,11 +1293,7 @@ async function handleBatchExport() {
         return;
     }
 
-    const validRows = batchState.rows.filter((row) => validateRow(row).valid);
-    if (!validRows.length) {
-        setStatus('目前沒有可輸出的有效資料列。');
-        return;
-    }
+    const validRows = batchState.rows;
 
     if (typeof JSZip === 'undefined') {
         setStatus('JSZip 函式庫未載入，無法輸出 ZIP。');
@@ -817,6 +1302,8 @@ async function handleBatchExport() {
 
     const zip = new JSZip();
     const dateText = new Date().toISOString().slice(0, 10);
+    let syncedCount = 0;
+    let syncFailedCount = 0;
 
     setStatus(`開始輸出 ${validRows.length} 筆資料...`);
 
@@ -838,10 +1325,21 @@ async function handleBatchExport() {
 
             const imageDataUrl = batchState.renderer.exportBase64();
             const imageBlob = await dataUrlToBlob(imageDataUrl);
+            const philipsJpegDataUrl = exportPhilipsJpegDataUrlFromBatchCanvas();
             const preferredName = String(row.name || row.company || row.position || `row_${index + 1}`).trim();
             const fileName = `nameplate_${sanitizeFileNamePart(preferredName, `row_${index + 1}`)}_${dateText}.png`;
             const targetFolder = sanitizeFolderName(row.deviceTarget, 'unassigned');
             zip.file(`${targetFolder}/${fileName}`, imageBlob);
+
+            try {
+                const syncResult = await pushRowToPhilipsDevice(row, philipsJpegDataUrl);
+                if (!syncResult.skipped) {
+                    syncedCount += 1;
+                }
+            } catch (syncError) {
+                syncFailedCount += 1;
+                console.warn(`第 ${index + 1} 列桌牌更新失敗:`, syncError);
+            }
 
             setStatus(`輸出中... (${index + 1}/${validRows.length})`);
         }
@@ -853,7 +1351,7 @@ async function handleBatchExport() {
         });
 
         downloadTextFile(`nameplates_${dateText}.zip`, zipBlob, 'application/zip');
-        setStatus(`批量輸出完成，共 ${validRows.length} 筆。`);
+        setStatus(`批量輸出完成，共 ${validRows.length} 筆；桌牌更新成功 ${syncedCount} 筆，失敗 ${syncFailedCount} 筆。`);
     } catch (error) {
         console.error(error);
         setStatus(`批量輸出失敗: ${error.message}`);

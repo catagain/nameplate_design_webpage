@@ -181,6 +181,7 @@ class NameplateRenderer {
                     token: 'name',
                     text: state.name,
                     fontSize: state.nameFontSize || state.fontSize || 120,
+                    color: state.nameTextColor || state.textColor || '#000000',
                     textShadow: state.nameTextShadow == null ? Boolean(state.textShadow) : Boolean(state.nameTextShadow),
                     offsetX: state.nameOffsetX || 0,
                     offsetY: state.nameOffsetY || 0,
@@ -196,6 +197,7 @@ class NameplateRenderer {
                     token: 'company',
                     text: state.company,
                     fontSize: state.companyFontSize || Math.max(24, Math.round(nameFontSize * 0.42)),
+                    color: state.companyTextColor || state.textColor || '#000000',
                     textShadow: state.companyTextShadow == null ? Boolean(state.textShadow) : Boolean(state.companyTextShadow),
                     offsetX: state.companyOffsetX || 0,
                     offsetY: state.companyOffsetY || 0,
@@ -211,6 +213,7 @@ class NameplateRenderer {
                     token: 'position',
                     text: state.position,
                     fontSize: state.positionFontSize || Math.max(24, Math.round(nameFontSize * 0.42)),
+                    color: state.positionTextColor || state.textColor || '#000000',
                     textShadow: state.positionTextShadow == null ? Boolean(state.textShadow) : Boolean(state.positionTextShadow),
                     offsetX: state.positionOffsetX || 0,
                     offsetY: state.positionOffsetY || 0,
@@ -311,7 +314,7 @@ class NameplateRenderer {
             if (item.kind === 'default-text') {
                 const fontWeight = item.token === 'name' ? 'bold ' : '';
                 this.ctx.font = `${fontWeight}${item.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
-                this.drawTextWithShadow(String(metrics.text || ''), metrics.x, metrics.y, Boolean(item.textShadow), state.textColor || '#000000');
+                this.drawTextWithShadow(String(metrics.text || ''), metrics.x, metrics.y, Boolean(item.textShadow), item.color || state.textColor || '#000000');
                 return;
             }
 

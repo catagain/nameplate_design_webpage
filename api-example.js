@@ -49,6 +49,7 @@ app.use(cors());
 const uploadDir = path.join(__dirname, 'uploads');
 const callbackLogPath = path.join(uploadDir, 'philips-callbacks.json');
 const uploadAccessLogPath = path.join(uploadDir, 'upload-access-log.json');
+const philipsDevicesPath = path.join(uploadDir, 'philips-devices.json');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -61,11 +62,43 @@ if (!fs.existsSync(uploadAccessLogPath)) {
     fs.writeFileSync(uploadAccessLogPath, '[]', 'utf8');
 }
 
+if (!fs.existsSync(philipsDevicesPath)) {
+    fs.writeFileSync(philipsDevicesPath, '[]', 'utf8');
+}
+
 function appendLimitedJsonLog(filePath, record, limit = 500) {
     const raw = fs.readFileSync(filePath, 'utf8');
     const list = JSON.parse(raw);
     list.unshift(record);
     fs.writeFileSync(filePath, JSON.stringify(list.slice(0, limit), null, 2), 'utf8');
+}
+
+function readPhilipsDevicesStore() {
+    try {
+        const raw = fs.readFileSync(philipsDevicesPath, 'utf8');
+        const list = JSON.parse(raw);
+        return Array.isArray(list) ? list : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function writePhilipsDevicesStore(list) {
+    fs.writeFileSync(philipsDevicesPath, JSON.stringify(list, null, 2), 'utf8');
+}
+
+function normalizeStoredPhilipsDevice(device = {}) {
+    const normalized = normalizePhilipsDevice(device);
+    const label = String(device.label || normalized.label || normalized.host).trim() || normalized.host;
+    return {
+        id: normalized.id,
+        label,
+        host: normalized.host,
+        port: normalized.port,
+        protocol: normalized.protocol,
+        device_id: String(device.device_id || normalized.device_id || '').trim(),
+        updatedAt: new Date().toISOString()
+    };
 }
 
 function getPublicBaseUrl(req) {
@@ -525,6 +558,72 @@ app.get('/api/philips/discover', async (req, res) => {
     }
 });
 
+app.get('/api/philips/devices', (req, res) => {
+    const devices = readPhilipsDevicesStore().sort((left, right) => {
+        const leftLabel = String(left.label || left.host || '').trim();
+        const rightLabel = String(right.label || right.host || '').trim();
+        return leftLabel.localeCompare(rightLabel, 'zh-Hant');
+    });
+
+    res.json({
+        success: true,
+        count: devices.length,
+        data: devices
+    });
+});
+
+app.post('/api/philips/devices', (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const input = body.device && typeof body.device === 'object' ? body.device : body;
+        const device = normalizeStoredPhilipsDevice(input);
+        const list = readPhilipsDevicesStore();
+        const index = list.findIndex(item => item.id === device.id);
+
+        if (index >= 0) {
+            list[index] = {
+                ...list[index],
+                ...device
+            };
+        } else {
+            list.push(device);
+        }
+
+        writePhilipsDevicesStore(list);
+
+        res.json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        res.status(400).json({
+            success: false,
+            error: '儲存桌牌設定失敗',
+            message: error.message
+        });
+    }
+});
+
+app.delete('/api/philips/devices/:id', (req, res) => {
+    const encodedId = String(req.params.id || '');
+    const targetId = decodeURIComponent(encodedId);
+    const list = readPhilipsDevicesStore();
+    const nextList = list.filter(item => item.id !== targetId);
+
+    if (nextList.length === list.length) {
+        return res.status(404).json({
+            success: false,
+            error: '找不到桌牌設定'
+        });
+    }
+
+    writePhilipsDevicesStore(nextList);
+    res.json({
+        success: true,
+        deletedId: targetId
+    });
+});
+
 app.post('/api/philips/proxy', async (req, res) => {
     try {
         const method = String(req.body?.method || 'GET').toUpperCase();
@@ -863,6 +962,9 @@ app.listen(PORT, HOST, () => {
 ║  • DELETE /api/nameplate/:id           ║
 ║  • GET    /api/philips/callbacks       ║
 ║  • GET    /api/philips/discover        ║
+║  • GET    /api/philips/devices         ║
+║  • POST   /api/philips/devices         ║
+║  • DELETE /api/philips/devices/:id     ║
 ║  • POST   /heartbeat                   ║
 ║  • POST   /image-post                  ║
 ║  • POST   /ota-post                    ║

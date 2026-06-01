@@ -29,12 +29,6 @@
         </section>
 
         <section class="edit-section">
-            <h2>目前欄位需求</h2>
-            <p class="batch-helper-text">必填欄位來自目前可見的文字物件；可選欄位來自可見的 QRCode 物件。</p>
-            <div id="columnSchemaSummary" class="batch-schema-list"></div>
-        </section>
-
-        <section class="edit-section">
             <h2>資料來源</h2>
             <div class="form-group">
                 <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
@@ -44,8 +38,10 @@
                     accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                     class="file-input"
                 >
-                <p class="batch-helper-text">檔案標題列需使用下方列出的欄位 key。欄位可多可少，但必填欄位不可缺少。若填寫 `deviceTarget`（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
+                <p class="batch-helper-text">檔案標題列需使用目前版型對應的欄位 key。欄位可多可少；若填寫 deviceTarget（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
             </div>
+
+            <datalist id="deviceTargetSuggestions"></datalist>
 
             <div class="batch-toolbar">
                 <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
@@ -77,7 +73,7 @@
 
         <section class="edit-section">
             <div class="batch-page-toolbar">
-                <button id="batchExportBtn" class="btn btn-primary" type="button">批量輸出</button>
+                <button id="batchExportBtn" class="btn btn-success" type="button">批量輸出</button>
             </div>
         </section>
     </div>

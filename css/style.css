@@ -337,6 +337,28 @@ input[type="text"]::placeholder {
     min-width: 160px;
 }
 
+.batch-row-plus-btn {
+    border: none;
+    background: transparent;
+    color: #16a34a;
+    cursor: pointer;
+    margin-left: 8px;
+    padding: 0;
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+.batch-row-plus-btn:hover {
+    color: #15803d;
+}
+
+.batch-row-plus-btn:focus {
+    outline: none;
+    text-decoration: underline;
+}
+
 .batch-canvas-wrap {
     max-width: 100%;
     overflow: auto;
@@ -495,6 +517,21 @@ input[type="checkbox"] {
 }
 
 .btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #059669;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.btn-success:active {
     transform: translateY(0);
 }
 
