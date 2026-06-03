@@ -1456,7 +1456,7 @@ function createDefaultPhilipsControlState() {
         selectedDeviceId: '',
         imageHostUrl: '',
         displayCallbackUrl: '/image-post',
-        imgDither: false,
+         imgDither: true,
         serverAddr: '',
         serverPort: 3001,
         heartbeatUrl: '/heartbeat',
@@ -1945,12 +1945,25 @@ async function initPhilipsDeviceDiscovery() {
 function handleDeviceSelectionChange(event) {
     philipsControlState.selectedDeviceId = event.target.value || '';
     const selectedDevice = getSelectedDevice();
+    const hostInput = document.getElementById('deviceHostInput');
+    if (hostInput) {
+        hostInput.readOnly = Boolean(philipsControlState.selectedDeviceId);
+    }
+
+    const pushBtn = document.getElementById('pushImageBothBtn');
+    if (pushBtn) {
+        const hasDevice = Boolean(philipsControlState.selectedDeviceId);
+        pushBtn.disabled = !hasDevice;
+        pushBtn.title = hasDevice ? '' : '請先選擇桌牌';
+    }
 
     if (selectedDevice) {
         syncDeviceEditorFields(selectedDevice);
     } else {
         syncDeviceEditorFields(createDefaultDevice());
     }
+
+
 
     syncPhilipsPanel();
     saveSettings();
@@ -2105,6 +2118,13 @@ function syncPhilipsControlsFromState() {
     document.getElementById('apiResultOutput').textContent = philipsControlState.lastApiResult || '尚未呼叫 API';
     handleNetworkModeChange();
     syncPhilipsPanel();
+
+    const pushBtn = document.getElementById('pushImageBothBtn');
+    if (pushBtn) {
+        const hasDevice = Boolean(philipsControlState.selectedDeviceId);
+        pushBtn.disabled = !hasDevice;
+        pushBtn.title = hasDevice ? '' : '請先選擇桌牌';
+    }
 }
 
 function syncPhilipsPanel() {
@@ -3985,6 +4005,10 @@ function handleCanvasMouseDown(e) {
         const objectId = getObjectIdFromSelectionToken(textType);
         if (objectId) {
             selectObject(objectId);
+            const managerSection = document.querySelector('.object-manager-section');
+            if (managerSection) {
+                managerSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
         }
         
         canvas.style.cursor = 'grabbing';
@@ -4072,6 +4096,10 @@ function handleCanvasTouchStart(e) {
         const objectId = getObjectIdFromSelectionToken(textType);
         if (objectId) {
             selectObject(objectId);
+            const managerSection = document.querySelector('.object-manager-section');
+            if (managerSection) {
+                managerSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
         }
         
         e.preventDefault(); // 防止頁面滾動
@@ -4557,7 +4585,7 @@ function handleDownload() {
 function handleReset() {
     if (confirm('確定要重置所有設定?')) {
         // 重置表單
-        document.getElementById('nameInput').value = '名子';
+                        document.getElementById('nameInput').value = '姓名';
         document.getElementById('companyInput').value = '公司名稱';
         document.getElementById('positionInput').value = '職位名稱';
         document.getElementById('bgColorInput').value = '#ffffff';
@@ -4586,7 +4614,7 @@ function handleReset() {
 
         // 重置狀態
         window.nameplateState = {
-            name: '名子',
+                name: '姓名',
             company: '公司名稱',
             position: '職位名稱',
             bgColor: '#ffffff',

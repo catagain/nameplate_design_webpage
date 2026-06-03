@@ -110,7 +110,7 @@ function normalizeTemplateState(state) {
     if (!state.nameTextColor) state.nameTextColor = state.textColor;
     if (!state.companyTextColor) state.companyTextColor = state.textColor;
     if (!state.positionTextColor) state.positionTextColor = state.textColor;
-    if (!state.name) state.name = '名子';
+    if (!state.name) state.name = '姓名';
     if (!state.company) state.company = '公司名稱';
     if (!state.position) state.position = '職位名稱';
 
@@ -135,7 +135,7 @@ function normalizeTemplateState(state) {
 
 function getDefaultTemplateState() {
     return {
-        name: '名子',
+        name: '姓名',
         company: '公司名稱',
         position: '職位名稱',
         bgColor: '#ffffff',

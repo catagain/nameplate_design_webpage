@@ -647,8 +647,9 @@
                         </div>
                     </div>
 
-                    <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
-                </section>
+                     <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
+                     <p class="batch-helper-text" style="margin-top: 8px; color: var(--text-muted);">💡 提示：點擊物件可修改詳細設定，拖曳物件可調整圖層上下順序。</p>
+                 </section>
 
                 <section class="edit-section batch-section" hidden>
                     <h2>批量生產</h2>
@@ -658,7 +659,7 @@
                         <p>你可以上傳欄位正確的 CSV / XLSX，也可以直接在網頁上編輯表格後輸出。</p>
                     </div>
 
-                    <a class="btn btn-primary" href="batch.html">前往批量生產頁</a>
+                    <a class="btn btn-primary" href="batch.html">儲存目前設定 開始批量生產</a>
 
                     <div class="legacy-batch-panel" hidden>
 
@@ -758,8 +759,8 @@
                             >
                         </div>
 
-                        <div class="form-group">
-                            <label for="devicePortInput">Port</label>
+                         <div class="form-group" hidden>
+                             <label for="devicePortInput">Port</label>
                             <input
                                 type="number"
                                 id="devicePortInput"
@@ -769,8 +770,8 @@
                             >
                         </div>
 
-                        <div class="form-group">
-                            <label for="deviceProtocolSelect">協定</label>
+                         <div class="form-group" hidden>
+                             <label for="deviceProtocolSelect">協定</label>
                             <select id="deviceProtocolSelect">
                                 <option value="http">http</option>
                                 <option value="https">https</option>
@@ -812,8 +813,8 @@
                             <div class="form-group checkbox-row">
                                 <label for="imgDitherInput">抖動運算</label>
                                 <div class="checkbox-inline">
-                                    <input type="checkbox" id="imgDitherInput">
-                                    <span>啟用</span>
+                                    <input type="checkbox" id="imgDitherInput" checked>
+                                     <span>啟用 (建議)</span>
                                 </div>
                             </div>
 
@@ -969,9 +970,9 @@
                             上傳圖片並同步更新雙面
                         </button>
                     </div>
-                    <button id="pushImageBothBtn" class="btn btn-success" type="button">
-                        同步更新雙面
-                    </button>
+                     <button id="pushImageBothBtn" class="btn btn-success" type="button">
+                         更新桌牌畫面
+                     </button>
                     <button id="openBatchPageBtn" class="btn btn-success" type="button">
                         批量生產
                     </button>
