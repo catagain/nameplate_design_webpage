@@ -37,6 +37,54 @@ const DUAL_DISPLAY_UPDATE_DELAY_MS = 350;
 const UNDO_HISTORY_LIMIT = 80;
 const DEFAULT_OBJECT_IDS = ['default-name', 'default-company', 'default-position', 'default-qrcode'];
 
+// ========== 推薦選項配置 ==========
+const RECOMMENDED_BG_COLORS = [
+    { name: '深藍', value: '#1e3a5f' },
+    { name: '深靛', value: '#0f172a' },
+    { name: '純黑', value: '#000000' },
+    { name: '純白', value: '#ffffff' },
+    { name: '深紅', value: '#7f1d1d' },
+    { name: '深紫', value: '#4c1d95' },
+    { name: '灰藍', value: '#475569' },
+    { name: '深褐', value: '#451a03' },
+    { name: '深綠', value: '#064e3b' },
+    { name: '深橘', value: '#c2410c' },
+    { name: '正紅', value: '#ff0000' },
+    { name: '正藍', value: '#0000ff' },
+    { name: '正綠', value: '#00ff00' },
+    { name: '正黃', value: '#ffff00' },
+    { name: '紫色', value: '#800080' },
+    { name: '深青', value: '#083344' },
+    { name: '深金', value: '#854d0e' },
+    { name: '橄欖綠', value: '#3f6212' },
+];
+
+const RECOMMENDED_TEXT_COLORS = [
+    { name: '純白', value: '#ffffff' },
+    { name: '純黑', value: '#000000' },
+    { name: '金黃', value: '#fef08a' },
+    { name: '亮黃', value: '#fde047' },
+    { name: '亮綠', value: '#86efac' },
+    { name: '亮藍', value: '#93c5fd' },
+    { name: '亮紅', value: '#fca5a5' },
+    { name: '薄荷綠', value: '#a7f3d0' },
+    { name: '淡紫', value: '#ddd6fe' },
+    { name: '淺橘', value: '#fed7aa' },
+    { name: '珍珠白', value: '#fafaf9' },
+    { name: '正紅', value: '#ff0000' },
+    { name: '正藍', value: '#0000ff' },
+    { name: '正綠', value: '#00ff00' },
+    { name: '正黃', value: '#ffff00' },
+    { name: '紫色', value: '#800080' },
+];
+
+const RECOMMENDED_FONTS = [
+    { name: '微軟正黑體', value: "'Microsoft JhengHei', '微軟正黑體', sans-serif" },
+    { name: 'Noto Sans TC', value: "'Noto Sans TC', sans-serif" },
+    { name: '襯線體', value: 'serif' },
+    { name: '無襯線體', value: 'sans-serif' },
+];
+
 let philipsControlState = createDefaultPhilipsControlState();
 let philipsDiscoveryIntervalId = null;
 let discoveredHeartbeatSyncCache = new Map();
@@ -392,6 +440,7 @@ function renderSelectedObjectSettings() {
     document.getElementById('objectEditTextGroup').hidden = !isTextObject;
     document.getElementById('objectEditFontSizeGroup').hidden = !isTextObject;
     document.getElementById('objectEditColorGroup').hidden = !isTextObject;
+    document.getElementById('objectEditFontFamilyGroup').hidden = !isTextObject;
     document.getElementById('objectEditShadowGroup').hidden = !isTextObject;
     document.getElementById('objectEditQrGroup').hidden = !isQrObject;
     document.getElementById('objectEditQrSizeGroup').hidden = !isQrObject;
@@ -412,6 +461,9 @@ function renderSelectedObjectSettings() {
         const colorValue = selected.isDefault
             ? (window.nameplateState[colorField] || window.nameplateState.textColor || '#000000')
             : (selected.color || '#000000');
+        const fontFamilyValue = selected.isDefault
+            ? (window.nameplateState.fontFamily || 'sans-serif')
+            : (selected.fontFamily || window.nameplateState.fontFamily || 'sans-serif');
         const shadowField = getDefaultTextShadowFieldByObjectId(selected.id);
         const shadowValue = selected.isDefault
             ? Boolean(window.nameplateState[shadowField])
@@ -422,7 +474,19 @@ function renderSelectedObjectSettings() {
         document.getElementById('objectEditFontSizeValue').textContent = `${fontSizeValue}px`;
         document.getElementById('objectEditColorInput').value = colorValue;
         document.getElementById('objectEditColorValue').textContent = colorValue;
+        
+        const fontFamilyInput = document.getElementById('objectEditFontFamilyInput');
+        fontFamilyInput.innerHTML = RECOMMENDED_FONTS.map(f => `
+            <option value="${f.value}" ${fontFamilyValue === f.value ? 'selected' : ''}>${f.name}</option>
+        `).join('');
+        fontFamilyInput.value = fontFamilyValue;
+
         document.getElementById('objectEditShadowInput').checked = shadowValue;
+
+        document.getElementById('objectApplyColorAll').checked = false;
+        document.getElementById('objectApplyFontAll').checked = false;
+
+        renderObjectRecommendedOptions();
     }
 
     if (isQrObject) {
@@ -546,26 +610,128 @@ function updateSelectedObjectColor(color) {
     }
 
     const normalizedColor = color || '#000000';
+    const applyAll = document.getElementById('objectApplyColorAll')?.checked;
 
-    if (selected.isDefault) {
-        const colorField = getDefaultTextColorFieldByObjectId(selected.id);
-        if (colorField) {
-            window.nameplateState[colorField] = normalizedColor;
-        }
+    if (applyAll) {
+        // 套用到所有文字物件
+        const allTextObjects = getObjectEntries().filter(item => item.type === 'text');
+        allTextObjects.forEach(item => {
+            if (item.isDefault) {
+                const colorField = getDefaultTextColorFieldByObjectId(item.id);
+                if (colorField) {
+                    window.nameplateState[colorField] = normalizedColor;
+                }
+            } else {
+                const objectMeta = getCustomObjectById(item.id);
+                if (objectMeta) {
+                    objectMeta.color = normalizedColor;
+                }
+            }
+        });
+
+        // 同步更新預設輸入框
         document.getElementById('textColorInput').value = normalizedColor;
         document.getElementById('textColorValue').textContent = normalizedColor;
     } else {
-        const objectMeta = getCustomObjectById(selected.id);
-        if (objectMeta) {
-            objectMeta.color = normalizedColor;
+        // 僅套用到目前選取物件
+        if (selected.isDefault) {
+            const colorField = getDefaultTextColorFieldByObjectId(selected.id);
+            if (colorField) {
+                window.nameplateState[colorField] = normalizedColor;
+            }
+            document.getElementById('textColorInput').value = normalizedColor;
+            document.getElementById('textColorValue').textContent = normalizedColor;
+        } else {
+            const objectMeta = getCustomObjectById(selected.id);
+            if (objectMeta) {
+                objectMeta.color = normalizedColor;
+            }
         }
     }
 
     document.getElementById('objectEditColorInput').value = normalizedColor;
     document.getElementById('objectEditColorValue').textContent = normalizedColor;
+    renderObjectRecommendedOptions();
     triggerRender();
     saveSettings();
 }
+
+function updateSelectedObjectFontFamily(fontFamily) {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    const applyAll = document.getElementById('objectApplyFontAll')?.checked;
+
+    if (applyAll) {
+        // 套用到所有文字物件
+        const allTextObjects = getObjectEntries().filter(item => item.type === 'text');
+        allTextObjects.forEach(item => {
+            if (!item.isDefault) {
+                const objectMeta = getCustomObjectById(item.id);
+                if (objectMeta) {
+                    objectMeta.fontFamily = fontFamily;
+                }
+            }
+        });
+        // 預設字體也更新
+        window.nameplateState.fontFamily = fontFamily;
+        const fontInput = document.getElementById('fontFamilyInput');
+        if (fontInput) fontInput.value = fontFamily;
+        updateActiveRecOption('recommendedFonts', fontFamily);
+    } else {
+        // 僅套用到目前選取物件
+        if (selected.isDefault) {
+            window.nameplateState.fontFamily = fontFamily;
+            const fontInput = document.getElementById('fontFamilyInput');
+            if (fontInput) fontInput.value = fontFamily;
+            updateActiveRecOption('recommendedFonts', fontFamily);
+        } else {
+            const objectMeta = getCustomObjectById(selected.id);
+            if (objectMeta) {
+                objectMeta.fontFamily = fontFamily;
+            }
+        }
+    }
+
+    const objectFontInput = document.getElementById('objectEditFontFamilyInput');
+    if (objectFontInput) objectFontInput.value = fontFamily;
+    renderObjectRecommendedOptions();
+    triggerRender();
+    saveSettings();
+}
+
+function renderObjectRecommendedOptions() {
+    const selected = getSelectedObjectMeta();
+    if (!selected || selected.type !== 'text') {
+        return;
+    }
+
+    const colorContainer = document.getElementById('objectRecommendedTextColors');
+    if (colorContainer) {
+        const recommendedColors = RECOMMENDED_TEXT_COLORS;
+        const currentColor = selected.isDefault
+            ? (window.nameplateState[getDefaultTextColorFieldByObjectId(selected.id)] || window.nameplateState.textColor || '#000000')
+            : (selected.color || '#000000');
+
+        colorContainer.innerHTML = recommendedColors.map(c => `
+            <div class="rec-option ${currentColor === c.value ? 'is-active' : ''}" data-value="${c.value}" title="${c.name}">
+                <div class="rec-color" style="background-color: ${c.value}"></div>
+            </div>
+        `).join('');
+
+        colorContainer.querySelectorAll('.rec-option').forEach(opt => {
+            opt.addEventListener('click', () => updateSelectedObjectColor(opt.dataset.value));
+        });
+    }
+
+    const fontContainer = document.getElementById('objectRecommendedFonts');
+    if (fontContainer) {
+        fontContainer.innerHTML = '';
+    }
+}
+
 
 function updateSelectedObjectShadow(checked) {
     const selected = getSelectedObjectMeta();
@@ -760,6 +926,88 @@ function deleteObjectById(objectId) {
     saveSettings();
 }
 
+// ========== 推薦選項邏輯 ==========
+function initRecommendedOptions() {
+    const bgContainer = document.getElementById('recommendedBgColors');
+    if (bgContainer) {
+        bgContainer.innerHTML = RECOMMENDED_BG_COLORS.map(c => `
+            <div class="rec-option" data-value="${c.value}" title="${c.name}">
+                <div class="rec-color" style="background-color: ${c.value}"></div>
+            </div>
+        `).join('');
+        bgContainer.querySelectorAll('.rec-option').forEach(opt => {
+            opt.addEventListener('click', () => handleRecBgColorClick(opt.dataset.value));
+        });
+    }
+
+    const textContainer = document.getElementById('recommendedTextColors');
+    if (textContainer) {
+        textContainer.innerHTML = RECOMMENDED_TEXT_COLORS.map(c => `
+            <div class="rec-option" data-value="${c.value}" title="${c.name}">
+                <div class="rec-color" style="background-color: ${c.value}"></div>
+            </div>
+        `).join('');
+        textContainer.querySelectorAll('.rec-option').forEach(opt => {
+            opt.addEventListener('click', () => handleRecTextColorClick(opt.dataset.value));
+        });
+    }
+
+    const fontContainer = document.getElementById('recommendedFonts');
+    if (fontContainer) {
+        fontContainer.innerHTML = RECOMMENDED_FONTS.map(f => `
+            <div class="rec-option" data-value="${f.value}" title="${f.name}">
+                <div class="rec-font" style="font-family: ${f.value}">${f.name}</div>
+            </div>
+        `).join('');
+        fontContainer.querySelectorAll('.rec-option').forEach(opt => {
+            opt.addEventListener('click', () => handleRecFontClick(opt.dataset.value));
+        });
+    }
+}
+
+function updateActiveRecOption(containerId, value) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.rec-option').forEach(opt => {
+        opt.classList.toggle('is-active', opt.dataset.value === value);
+    });
+}
+
+function handleRecBgColorClick(color) {
+    window.nameplateState.bgColor = color;
+    const input = document.getElementById('bgColorInput');
+    const display = document.getElementById('colorValue');
+    if (input) input.value = color;
+    if (display) display.textContent = color;
+    updateActiveRecOption('recommendedBgColors', color);
+    triggerRender();
+    saveSettings();
+}
+
+function handleRecTextColorClick(color) {
+    window.nameplateState.textColor = color;
+    const input = document.getElementById('textColorInput');
+    const display = document.getElementById('textColorValue');
+    if (input) input.value = color;
+    if (display) display.textContent = color;
+    updateActiveRecOption('recommendedTextColors', color);
+    triggerRender();
+    saveSettings();
+}
+
+function handleRecFontClick(font) {
+    handleFontFamilyChange(font);
+}
+
+function handleFontFamilyChange(font) {
+    window.nameplateState.fontFamily = font;
+    const input = document.getElementById('fontFamilyInput');
+    if (input) input.value = font;
+    updateActiveRecOption('recommendedFonts', font);
+    triggerRender();
+    saveSettings();
+}
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
     initRenderer();
@@ -768,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateTextPositionControlRanges();
     loadPreferredSettings();
     initDarkMode();
+    initRecommendedOptions();
     await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
@@ -867,6 +1116,7 @@ function attachEventListeners() {
     document.getElementById('positionFontSize').addEventListener('input', handlePositionFontSizeChange);
     document.getElementById('textColorInput').addEventListener('change', handleTextColorChange);
     document.getElementById('textShadow').addEventListener('change', handleTextShadowChange);
+    document.getElementById('fontFamilyInput').addEventListener('change', (e) => handleFontFamilyChange(e.target.value));
 
     // 文字位置 - 姓名
     document.getElementById('nameOffsetX').addEventListener('input', handleNameOffsetXChange);
@@ -964,6 +1214,11 @@ function attachEventListeners() {
     document.getElementById('objectEditColorInput').addEventListener('change', (event) => {
         updateSelectedObjectColor(event.target.value);
     });
+
+    document.getElementById('objectEditFontFamilyInput').addEventListener('change', (event) => {
+        updateSelectedObjectFontFamily(event.target.value);
+    });
+
     document.getElementById('objectEditShadowInput').addEventListener('change', (event) => {
         updateSelectedObjectShadow(event.target.checked);
     });
@@ -4443,6 +4698,13 @@ function handlePresetClick(e) {
     document.getElementById('companyFontSizeValue').textContent = `${preset.companyFontSize}px`;
     document.getElementById('positionFontSizeValue').textContent = `${preset.positionFontSize}px`;
     document.getElementById('textColorValue').textContent = preset.textColor;
+
+    // 更新推薦選項的選中狀態
+    updateActiveRecOption('recommendedBgColors', preset.bgColor);
+    updateActiveRecOption('recommendedTextColors', preset.textColor);
+
+    // 同步更新物件管理器設定面板
+    renderSelectedObjectSettings();
 
     // 更新按鈕狀態
     document.querySelectorAll('.preset-btn').forEach(btn => {

@@ -265,7 +265,7 @@ class NameplateRenderer {
             const x = centerX + parseInt(item.offsetX || 0, 10);
             const y = this.getDefaultTextBaseY(item.token, state) + parseInt(item.offsetY || 0, 10);
             const fontWeight = item.token === 'name' ? 'bold ' : '';
-            this.ctx.font = `${fontWeight}${item.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            this.ctx.font = `${fontWeight}${item.fontSize}px ${item.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
             const text = String(item.text || '');
             const width = this.ctx.measureText(text).width;
             const height = item.fontSize;
@@ -284,7 +284,7 @@ class NameplateRenderer {
 
         if (item.type === 'text') {
             const fontSize = parseInt(item.fontSize || 42, 10);
-            this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            this.ctx.font = `${fontSize}px ${item.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
             const text = String(item.text || '新文字');
             return { x, y, width: this.ctx.measureText(text).width, height: fontSize, text, fontSize };
         }
@@ -313,7 +313,7 @@ class NameplateRenderer {
 
             if (item.kind === 'default-text') {
                 const fontWeight = item.token === 'name' ? 'bold ' : '';
-                this.ctx.font = `${fontWeight}${item.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.font = `${fontWeight}${item.fontSize}px ${item.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
                 this.drawTextWithShadow(String(metrics.text || ''), metrics.x, metrics.y, Boolean(item.textShadow), item.color || state.textColor || '#000000');
                 return;
             }
@@ -331,7 +331,7 @@ class NameplateRenderer {
 
             if (item.type === 'text') {
                 const fontSize = parseInt(item.fontSize || 42, 10);
-                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.font = `${fontSize}px ${item.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
                 this.drawTextWithShadow(String(metrics.text || '新文字'), metrics.x, metrics.y, Boolean(item.textShadow), item.color || state.textColor || '#000000');
                 return;
             }
@@ -508,9 +508,9 @@ class NameplateRenderer {
         this.ctx.textBaseline = 'middle';
 
         positions.forEach(pos => {
-            this.ctx.font = `bold ${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+            this.ctx.font = `bold ${pos.fontSize}px ${state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
             if (pos.type === 'company' || pos.type === 'position') {
-                this.ctx.font = `${pos.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.font = `${pos.fontSize}px ${state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
             }
             this.drawTextWithShadow(pos.text, pos.x, pos.y, textShadow, textColor);
         });
@@ -581,7 +581,7 @@ class NameplateRenderer {
 
             if (objectMeta.type === 'text') {
                 const fontSize = parseInt(objectMeta.fontSize || 42, 10);
-                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.font = `${fontSize}px ${objectMeta.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'middle';
                 this.drawTextWithShadow(
@@ -636,7 +636,7 @@ class NameplateRenderer {
 
             if (objectMeta.type === 'text') {
                 const fontSize = parseInt(objectMeta.fontSize || 42, 10);
-                this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`;
+                this.ctx.font = `${fontSize}px ${objectMeta.fontFamily || state.fontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif'}`;
                 const text = String(objectMeta.text || '新文字');
                 const textWidth = this.ctx.measureText(text).width;
                 const left = objX - textWidth / 2;
@@ -700,6 +700,7 @@ window.nameplateState = {
     company: '公司名稱',
     position: '職位名稱',
     bgColor: '#1e3a5f',
+    fontFamily: '-apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Microsoft YaHei\', sans-serif',
     nameFontSize: 120,
     companyFontSize: 50,
     positionFontSize: 50,

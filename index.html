@@ -120,6 +120,9 @@
                     
                     <div class="form-group">
                         <label>背景顏色</label>
+                        <div class="recommended-options" id="recommendedBgColors">
+                            <!-- JS will populate -->
+                        </div>
                         <div class="color-selector">
                             <input 
                                 type="color" 
@@ -207,7 +210,26 @@
                     </div>
 
                     <div class="form-group">
+                        <label>字體選擇</label>
+                        <div class="recommended-options" id="recommendedFonts">
+                            <!-- JS will populate -->
+                        </div>
+                        <select id="fontFamilyInput">
+                            <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif">系統預設</option>
+                            <option value="'Microsoft JhengHei', '微軟正黑體', sans-serif">微軟正黑體</option>
+                            <option value="'Noto Sans TC', sans-serif">Noto Sans TC</option>
+                            <option value="serif">襯線體 (Serif)</option>
+                            <option value="sans-serif">無襯線體 (Sans-serif)</option>
+                            <option value="cursive">手寫體 (Cursive)</option>
+                            <option value="monospace">等寬體 (Monospace)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label>文字顏色</label>
+                        <div class="recommended-options" id="recommendedTextColors">
+                            <!-- JS will populate -->
+                        </div>
                         <div class="color-selector">
                             <input 
                                 type="color" 
@@ -569,12 +591,26 @@
 
                         <div class="form-group" id="objectEditColorGroup" hidden>
                             <label for="objectEditColorInput">文字顏色</label>
+                            <div class="recommended-options" id="objectRecommendedTextColors"></div>
                             <div class="color-selector">
-                                <input type="color" id="objectEditColorInput" value="#000000">
-                                <span id="objectEditColorValue">#000000</span>
+                                 <input type="color" id="objectEditColorInput" value="#000000">
+                                 <span id="objectEditColorValue">#000000</span>
+                            </div>
+                            <div class="checkbox-inline" style="margin-top: 8px; align-items: flex-start;">
+                                <input type="checkbox" id="objectApplyColorAll">
+                                <span style="font-size: 13px;">套用到所有文字物件</span>
                             </div>
                         </div>
-
+                        <div class="form-group" id="objectEditFontFamilyGroup" hidden>
+                            <label for="objectEditFontFamilyInput">文字字體</label>
+                            <div class="font-selector">
+                                <select id="objectEditFontFamilyInput"></select>
+                            </div>
+                            <div class="checkbox-inline" style="margin-top: 8px; align-items: flex-start;">
+                                <input type="checkbox" id="objectApplyFontAll">
+                                <span style="font-size: 13px;">套用到所有文字物件</span>
+                            </div>
+                        </div>
                         <div class="form-group" id="objectEditShadowGroup" hidden>
                             <label for="objectEditShadowInput">文字陰影</label>
                             <input type="checkbox" id="objectEditShadowInput">
