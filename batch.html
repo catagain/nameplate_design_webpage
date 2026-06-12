@@ -106,9 +106,10 @@
                 <h2>版型預覽</h2>
                 <p class="batch-helper-text">批量輸出會使用下方同一個版型逐列套值輸出 PNG。</p>
                 <div class="batch-canvas-wrap">
-                    <button id="batchPrevRow" class="btn btn-sm btn-secondary">← 上一筆</button>
+                    <button id="batchPrevRow">← 上一筆</button>
                     <canvas id="batchCanvas" width="800" height="480"></canvas>
-                    <button id="batchNextRow" class="btn btn-sm btn-secondary">下一筆 →</button>
+                    <span id="batchPageCounter" class="batch-page-counter">0 / 0</span>
+                    <button id="batchNextRow">下一筆 →</button>
                 </div>
             </section>
 
@@ -130,6 +131,9 @@
             <section class="edit-section">
                 <div class="batch-page-toolbar">
                     <button id="batchExportBtn" class="btn btn-success" type="button">批量輸出</button>
+                </div>
+                <div id="batchExportTableContainer" class="batch-export-table-container">
+                    <div class="batch-empty-state">尚無資料，請先匯入資料</div>
                 </div>
             </section>
 

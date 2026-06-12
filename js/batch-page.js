@@ -45,8 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         goToStep(1);
         renderSchemaSummary();
         renderMappingContent();
-        addEmptyRow();
-        setStatus('已載入目前版型。可上傳檔案或直接在表格編輯資料。');
+        renderTable();
+        setStatus('已載入目前版型。可上傳 CSV/XLSX/XLS 檔案或前往「檢視與編輯」手動輸入資料。');
     } catch (error) {
         console.error(error);
         setStatus(`初始化失敗: ${error.message}`);
@@ -959,8 +959,10 @@ function getStatusPillHtml(row) {
         return '<span class="batch-status-pill valid">可輸出</span>';
     }
     switch (row._exportResult) {
+        case 'uploading':
+            return '<span class="batch-status-pill uploading">上傳中⋯</span>';
         case 'success':
-            return '<span class="batch-status-pill exported">已匯出</span>';
+            return '<span class="batch-status-pill exported">✓ 完成上傳</span>';
         case 'skipped':
             return '<span class="batch-status-pill exported">已跳過</span>';
         case 'failed': {
@@ -1025,7 +1027,7 @@ function renderTable() {
         const msg = batchState.searchQuery ? '無符合搜尋條件的資料列' : '尚無資料，請上傳檔案或新增一列';
         body.innerHTML = `<tr><td colspan="${totalCols}" class="batch-empty-state">${msg}</td></tr>`;
         updateSummary();
-        if (step1Preview) step1Preview.innerHTML = '<div class="batch-empty-state">尚未匯入資料</div>';
+        if (step1Preview) renderStep1Preview();
         return;
     }
 
@@ -1073,6 +1075,8 @@ function renderTable() {
     updateSummary();
     renderGalleryStrip();
     renderStep1Preview();
+    renderExportStatusTable();
+    updatePageCounter();
 }
 
 function renderStep1Preview() {
@@ -1080,7 +1084,24 @@ function renderStep1Preview() {
     if (!container) return;
 
     if (!batchState.rows.length) {
-        container.innerHTML = '<div class="batch-empty-state">尚未匯入資料</div>';
+        const fileInput = document.getElementById('batchCsvInput');
+        const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+        if (!hasFile) {
+            container.innerHTML = `
+                <div class="batch-upload-placeholder">
+                    <div class="placeholder-icon">
+                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3>尚未上傳資料</h3>
+                    <p>請上傳 CSV / XLSX / XLS 檔案，或前往「檢視與編輯」步驟手動新增資料列。</p>
+                </div>`;
+            return;
+        }
+        container.innerHTML = '<div class="batch-empty-state">無法解析資料，請檢查檔案格式是否正確</div>';
         return;
     }
 
@@ -1104,6 +1125,32 @@ function renderStep1Preview() {
     }
 
     html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+function renderExportStatusTable() {
+    const container = document.getElementById('batchExportTableContainer');
+    if (!container) return;
+
+    if (!batchState.rows.length) {
+        container.innerHTML = '<div class="batch-empty-state">尚無資料，請先匯入資料</div>';
+        return;
+    }
+
+    let html = `<div class="batch-export-table-scroll"><table class="batch-preview-table">`;
+    html += `<thead><tr><th>#</th><th>名稱</th><th>桌牌目標</th><th>狀態</th></tr></thead><tbody>`;
+    batchState.rows.forEach((row, idx) => {
+        const name = escapeHtml(String(row.name || row.company || row.position || `第 ${idx + 1} 列`).trim());
+        const target = escapeHtml(String(row.deviceTarget || '—').trim());
+        const statusHtml = getStatusPillHtml(row);
+        html += `<tr>
+            <td>${idx + 1}</td>
+            <td>${name}</td>
+            <td>${target}</td>
+            <td>${statusHtml}</td>
+        </tr>`;
+    });
+    html += `</tbody></table></div>`;
     container.innerHTML = html;
 }
 
@@ -1236,11 +1283,14 @@ function attachEventListeners() {
         renderTable();
     });
 
-    // 全選
-    document.getElementById('batchSelectAll').addEventListener('change', (e) => {
-        const checked = e.target.checked;
-        document.querySelectorAll('.batch-row-checkbox').forEach(cb => cb.checked = checked);
-    });
+    // 全選（batchSelectAll 由 renderTable 動態產生，可能不存在）
+    const selectAll = document.getElementById('batchSelectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.batch-row-checkbox').forEach(cb => cb.checked = checked);
+        });
+    }
 
     // 個別 checkbox 同步全選狀態
     document.getElementById('batchPreviewBody').addEventListener('change', (e) => {
@@ -1403,10 +1453,6 @@ function buildRowsFromSheetRows(rows) {
 
     const headers = rows[0].map((header) => String(header || '').trim());
     const allowedKeys = new Set(batchState.schema.all.map((column) => column.key));
-    const unknownHeaders = headers.filter((header) => header && !allowedKeys.has(header));
-    if (unknownHeaders.length > 0) {
-        throw new Error(`存在未支援欄位: ${unknownHeaders.join(', ')}`);
-    }
 
     const dataRows = rows.slice(1);
     if (!dataRows.length) {
@@ -1438,6 +1484,7 @@ async function handleSpreadsheetUpload(event) {
         setStatus(`已載入 ${file.name}，共 ${batchState.rows.length} 列。`);
     } catch (error) {
         setStatus(`檔案解析失敗: ${error.message}`);
+        renderStep1Preview();
     }
 }
 
@@ -1620,15 +1667,21 @@ async function applyRowPreview(row) {
     if (idx !== -1) {
         batchState.currentPreviewIndex = idx;
     }
+    updatePageCounter();
 }
 
 function paginatePreview(direction) {
     if (!batchState.rows.length) return;
 
+    // Initialize currentPreviewIndex if not set
+    if (typeof batchState.currentPreviewIndex !== 'number' || batchState.currentPreviewIndex < 0) {
+        batchState.currentPreviewIndex = 0;
+    }
+
     const oldIndex = batchState.currentPreviewIndex;
-    if (direction === 'next') {
+    if (direction === 1 || direction === 'next') {
         batchState.currentPreviewIndex = Math.min(batchState.rows.length - 1, batchState.currentPreviewIndex + 1);
-    } else if (direction === 'prev') {
+    } else if (direction === -1 || direction === 'prev') {
         batchState.currentPreviewIndex = Math.max(0, batchState.currentPreviewIndex - 1);
     }
 
@@ -1637,6 +1690,15 @@ function paginatePreview(direction) {
         applyRowPreview(row);
         setStatus(`已套用第 ${batchState.currentPreviewIndex + 1} 列預覽`);
     }
+    updatePageCounter();
+}
+
+function updatePageCounter() {
+    const counter = document.getElementById('batchPageCounter');
+    if (!counter) return;
+    const total = batchState.rows.length;
+    const current = total > 0 ? (batchState.currentPreviewIndex >= 0 ? batchState.currentPreviewIndex + 1 : 1) : 0;
+    counter.textContent = `${current} / ${total}`;
 }
 
 
@@ -1716,6 +1778,7 @@ async function handleBatchExport() {
 
     showExportOverlay(validRows.length);
     appendExportLog(`開始輸出 ${validRows.length} 筆資料...`, 'info');
+    renderExportStatusTable();
 
     try {
         for (let index = 0; index < validRows.length; index += 1) {
@@ -1746,6 +1809,11 @@ async function handleBatchExport() {
             const targetFolder = sanitizeFolderName(row.deviceTarget, 'unassigned');
             zip.file(`${targetFolder}/${fileName}`, imageBlob);
 
+            // 先設定為上傳中，即時更新表格
+            row._exportResult = 'uploading';
+            row._exportError = null;
+            renderExportStatusTable();
+
             try {
                 const syncResult = await pushRowToPhilipsDevice(row, philipsJpegDataUrl);
                 if (!syncResult.skipped) {
@@ -1766,6 +1834,9 @@ async function handleBatchExport() {
                 console.warn(`第 ${index + 1} 列桌牌更新失敗:`, syncError);
                 appendExportLog(`第 ${index + 1} 列 (${preferredName}): ❌ 桌牌更新失敗 - ${syncError.message}`, 'error');
             }
+
+            // 每筆處理完即時更新狀態表格
+            renderExportStatusTable();
 
             // Update progress bar
             const progress = ((index + 1) / validRows.length * 100).toFixed(1);
