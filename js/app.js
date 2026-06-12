@@ -78,6 +78,51 @@ const RECOMMENDED_TEXT_COLORS = [
     { name: '紫色', value: '#800080' },
 ];
 
+const COLOR_PALETTE_BASES = [
+    { name: '純黑', h: 0, s: 0, l: 0 },
+    { name: '深藍', h: 215, s: 65, l: 22 },
+    { name: '深紅', h: 0, s: 70, l: 28 },
+    { name: '深紫', h: 270, s: 60, l: 30 },
+    { name: '深綠', h: 150, s: 55, l: 22 },
+    { name: '深青', h: 190, s: 60, l: 24 },
+    { name: '深橘', h: 25, s: 75, l: 35 },
+    { name: '深金', h: 45, s: 65, l: 30 },
+    { name: '深褐', h: 20, s: 55, l: 24 },
+    { name: '純白', h: 0, s: 0, l: 100 },
+];
+
+function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function generateCirclePaletteHTML(currentValue) {
+    let html = '<div class="palette-row">';
+    for (const base of COLOR_PALETTE_BASES) {
+        const hex = hslToHex(base.h, base.s, base.l);
+        const isActive = hex.toUpperCase() === (currentValue || '').toUpperCase();
+        html += `<div class="rec-option${isActive ? ' is-active' : ''}" data-value="${hex}" title="${hex} ${base.name}">`;
+        html += `<div class="rec-color" style="background-color:${hex}"></div></div>`;
+    }
+    html += '</div><div class="palette-row">';
+    for (const base of COLOR_PALETTE_BASES) {
+        const lightL = Math.min(92, base.l + 42);
+        const hex = hslToHex(base.h, base.s, lightL);
+        const isActive = hex.toUpperCase() === (currentValue || '').toUpperCase();
+        html += `<div class="rec-option${isActive ? ' is-active' : ''}" data-value="${hex}" title="${hex} ${base.name}（淡色）">`;
+        html += `<div class="rec-color" style="background-color:${hex}"></div></div>`;
+    }
+    html += '</div>';
+    return html;
+}
+
 const RECOMMENDED_FONTS = [
     { name: '微軟正黑體', value: "'Microsoft JhengHei', '微軟正黑體', sans-serif" },
     { name: 'Noto Sans TC', value: "'Noto Sans TC', sans-serif" },
@@ -710,16 +755,11 @@ function renderObjectRecommendedOptions() {
 
     const colorContainer = document.getElementById('objectRecommendedTextColors');
     if (colorContainer) {
-        const recommendedColors = RECOMMENDED_TEXT_COLORS;
         const currentColor = selected.isDefault
             ? (window.nameplateState[getDefaultTextColorFieldByObjectId(selected.id)] || window.nameplateState.textColor || '#000000')
             : (selected.color || '#000000');
 
-        colorContainer.innerHTML = recommendedColors.map(c => `
-            <div class="rec-option ${currentColor === c.value ? 'is-active' : ''}" data-value="${c.value}" title="${c.name}">
-                <div class="rec-color" style="background-color: ${c.value}"></div>
-            </div>
-        `).join('');
+        colorContainer.innerHTML = generateCirclePaletteHTML(currentColor);
 
         colorContainer.querySelectorAll('.rec-option').forEach(opt => {
             opt.addEventListener('click', () => updateSelectedObjectColor(opt.dataset.value));
@@ -930,11 +970,7 @@ function deleteObjectById(objectId) {
 function initRecommendedOptions() {
     const bgContainer = document.getElementById('recommendedBgColors');
     if (bgContainer) {
-        bgContainer.innerHTML = RECOMMENDED_BG_COLORS.map(c => `
-            <div class="rec-option" data-value="${c.value}" title="${c.name}">
-                <div class="rec-color" style="background-color: ${c.value}"></div>
-            </div>
-        `).join('');
+        bgContainer.innerHTML = generateCirclePaletteHTML();
         bgContainer.querySelectorAll('.rec-option').forEach(opt => {
             opt.addEventListener('click', () => handleRecBgColorClick(opt.dataset.value));
         });
@@ -942,11 +978,7 @@ function initRecommendedOptions() {
 
     const textContainer = document.getElementById('recommendedTextColors');
     if (textContainer) {
-        textContainer.innerHTML = RECOMMENDED_TEXT_COLORS.map(c => `
-            <div class="rec-option" data-value="${c.value}" title="${c.name}">
-                <div class="rec-color" style="background-color: ${c.value}"></div>
-            </div>
-        `).join('');
+        textContainer.innerHTML = generateCirclePaletteHTML();
         textContainer.querySelectorAll('.rec-option').forEach(opt => {
             opt.addEventListener('click', () => handleRecTextColorClick(opt.dataset.value));
         });
@@ -1008,6 +1040,93 @@ function handleFontFamilyChange(font) {
     saveSettings();
 }
 
+// ========== 分頁切換 ==========
+function initTabs() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            contents.forEach(content => {
+                content.hidden = content.dataset.tab !== targetTab;
+            });
+        });
+    });
+}
+
+function switchToTab(tabName) {
+    const tab = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (!tab) return;
+    tab.click();
+}
+
+// ========== 功能提示按鈕（？） ==========
+const HELP_SECTION_MAP = [
+    { sel: '.edit-section.presets', text: '快速套用專業設計的主題配色與字型設定。' },
+    { sel: '.tab-content[data-tab="canvas"] > .edit-section:nth-of-type(2)', text: '調整桌牌畫布的比例與尺寸，建議使用 800×480 px 的標準規格。' },
+    { sel: '.tab-content[data-tab="canvas"] > .edit-section:nth-of-type(3)', text: '設定背景顏色或上傳背景圖片，支援透明度調整。' },
+    { sel: '.edit-section.object-manager-section', text: '管理所有物件的顯示狀態與圖層順序，點擊可選取或隱藏。' },
+    { sel: '.edit-section.device-section', text: '選擇目標桌牌並上傳畫面、觸發 OTA 更新，或查看 API 執行結果。' },
+    { sel: '.action-section', text: '直接上傳圖片至桌牌、更新雙面畫面、批量生產或下載 PNG。' },
+];
+
+function initSectionHelpButtons() {
+    const tooltip = document.getElementById('tab-tooltip');
+    const textEl = document.getElementById('tab-tooltip-text');
+    if (!tooltip || !textEl) return;
+
+    for (const entry of HELP_SECTION_MAP) {
+        const section = document.querySelector(entry.sel);
+        if (!section) continue;
+
+        // Find the heading element inside the section
+        const heading = section.querySelector('h2, h3');
+        if (!heading) continue;
+
+        // Add "?" button
+        const btn = document.createElement('span');
+        btn.className = 'section-help-btn';
+        btn.textContent = '?';
+        btn.title = '查看使用說明';
+        section.style.position = 'relative';
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            textEl.textContent = entry.text;
+            tooltip.style.display = 'block';
+
+            // Position tooltip near the button
+            const br = btn.getBoundingClientRect();
+            let left = br.right + 8;
+            let top = br.top - 10;
+            const tw = 260;
+            if (left + tw > window.innerWidth - 8) {
+                left = Math.max(8, br.left - tw - 8);
+            }
+            if (top < 4) top = 4;
+            if (top + 80 > window.innerHeight) top = window.innerHeight - 90;
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+
+            const dismiss = (ev) => {
+                if (!tooltip.contains(ev.target) && ev.target !== btn) {
+                    tooltip.style.display = 'none';
+                    document.removeEventListener('click', dismiss, true);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', dismiss, true), 0);
+        });
+
+        // Insert after heading
+        heading.insertAdjacentElement('afterend', btn);
+    }
+}
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
     initRenderer();
@@ -1017,6 +1136,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPreferredSettings();
     initDarkMode();
     initRecommendedOptions();
+    initTabs();
+    initSectionHelpButtons();
+    initAddObjectModal();
     await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
@@ -1177,9 +1299,7 @@ function attachEventListeners() {
     document.getElementById('batchPreviewBody').addEventListener('click', handleBatchPreviewAction);
     document.getElementById('batchPreviewBody').addEventListener('change', handleBatchPreviewEdit);
 
-    document.getElementById('addTextObjectBtn').addEventListener('click', handleAddTextObject);
-    document.getElementById('addQrObjectBtn').addEventListener('click', handleAddQrObject);
-    document.getElementById('addImageObjectBtn').addEventListener('click', handleAddImageObject);
+    document.getElementById('addObjectBtn').addEventListener('click', handleAddObjectClick);
     document.getElementById('deleteSelectedObjectBtn').addEventListener('click', () => deleteObjectById(selectedObjectId));
     document.getElementById('objectManagerList').addEventListener('click', handleObjectManagerClick);
     document.getElementById('objectManagerList').addEventListener('dragstart', handleObjectManagerDragStart);
@@ -1247,7 +1367,6 @@ function attachEventListeners() {
     document.getElementById('directImagePreview').addEventListener('click', () => { preferredPasteImageTarget = 'direct-upload'; });
     document.getElementById('uploadImageToBothBtn').addEventListener('focus', () => { preferredPasteImageTarget = 'direct-upload'; });
     document.getElementById('objectImageFileInput').addEventListener('focus', () => { preferredPasteImageTarget = 'object-image'; });
-    document.getElementById('addImageObjectBtn').addEventListener('focus', () => { preferredPasteImageTarget = 'object-image'; });
     document.getElementById('objectManagerList').addEventListener('click', () => { preferredPasteImageTarget = 'object-image'; });
 
     // 全域貼上圖片支援
@@ -3485,6 +3604,7 @@ function applyBackgroundImageFile(file) {
         preview.innerHTML = `<img src="${event.target.result}" alt="背景預覽">`;
         preview.classList.add('has-image');
         document.getElementById('clearImageBtn').style.display = 'block';
+        document.getElementById('bgOpacityGroup').style.display = 'block';
 
         saveSettings();
     };
@@ -3512,6 +3632,7 @@ function handleClearImage() {
     preview.innerHTML = '<span>未選擇圖片</span>';
     preview.classList.remove('has-image');
     document.getElementById('clearImageBtn').style.display = 'none';
+    document.getElementById('bgOpacityGroup').style.display = 'none';
     
     triggerRender();
     saveSettings();
@@ -4004,6 +4125,7 @@ function handleCanvasMouseDown(e) {
 
         const objectId = getObjectIdFromSelectionToken(textType);
         if (objectId) {
+            switchToTab('objects');
             selectObject(objectId);
             const managerSection = document.querySelector('.object-manager-section');
             if (managerSection) {
@@ -4095,6 +4217,7 @@ function handleCanvasTouchStart(e) {
 
         const objectId = getObjectIdFromSelectionToken(textType);
         if (objectId) {
+            switchToTab('objects');
             selectObject(objectId);
             const managerSection = document.querySelector('.object-manager-section');
             if (managerSection) {
@@ -4300,6 +4423,54 @@ function handleAddTextObject() {
     triggerRender();
     saveSettings();
     showNotification('已新增文字物件', 'success');
+}
+
+// ========== 新增物件按鈕與彈窗 ==========
+function handleAddObjectClick() {
+    const modal = document.getElementById('addObjectModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function initAddObjectModal() {
+    const modal = document.getElementById('addObjectModal');
+    if (!modal) return;
+
+    modal.querySelectorAll('.add-object-option').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const type = this.dataset.type;
+            modal.style.display = 'none';
+
+            if (type === 'text') {
+                const text = prompt('請輸入文字內容：', '新文字');
+                if (text === null) return;
+                document.getElementById('objectTextInput').value = text;
+                handleAddTextObject();
+            } else if (type === 'image') {
+                document.getElementById('objectImageFileInput').click();
+            } else if (type === 'qr') {
+                const url = prompt('請輸入 QRCode 網址：', 'https://');
+                if (url === null || url.trim() === '') return;
+                document.getElementById('objectQrUrlInput').value = url;
+                handleAddQrObject();
+            }
+        });
+    });
+
+    const closeBtn = modal.querySelector('.add-object-modal-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+    }
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+
+    // File input change → auto-create image object
+    document.getElementById('objectImageFileInput').addEventListener('change', function () {
+        const file = this.files && this.files[0] ? this.files[0] : null;
+        if (file) addImageObjectFromFile(file);
+        this.value = '';
+    });
 }
 
 async function handleAddQrObject() {
@@ -4948,8 +5119,9 @@ async function applySnapshot(snapshot, options = {}) {
             window.renderer.clearBackgroundImage();
             const preview = document.getElementById('imagePreview');
             preview.innerHTML = '<span>未選擇圖片</span>';
-            preview.classList.remove('has-image');
-            document.getElementById('clearImageBtn').style.display = 'none';
+                preview.classList.remove('has-image');
+                document.getElementById('clearImageBtn').style.display = 'none';
+                document.getElementById('bgOpacityGroup').style.display = 'none';
         }
 
         if (qrCodeDataUrl) {
@@ -5221,6 +5393,7 @@ function loadPreferredSettings() {
                 preview.innerHTML = `<img src="${bgImageDataUrl}" alt="背景預覽">`;
                 preview.classList.add('has-image');
                 document.getElementById('clearImageBtn').style.display = 'block';
+                document.getElementById('bgOpacityGroup').style.display = 'block';
             } else {
                 document.getElementById('bgImageInput').value = '';
                 window.renderer.clearBackgroundImage();
@@ -5228,6 +5401,7 @@ function loadPreferredSettings() {
                 preview.innerHTML = '<span>未選擇圖片</span>';
                 preview.classList.remove('has-image');
                 document.getElementById('clearImageBtn').style.display = 'none';
+                document.getElementById('bgOpacityGroup').style.display = 'none';
             }
 
             if (qrCodeDataUrl) {
@@ -5275,22 +5449,51 @@ function loadPreferredSettings() {
 // ========== UI 輔助函数 ==========
 function showLoading(show) {
     const loading = document.getElementById('loading');
-    if (show) {
-        loading.style.display = 'flex';
-    } else {
-        loading.style.display = 'none';
+    if (loading) {
+        loading.style.display = show ? 'flex' : 'none';
+    }
+    const loadingBar = document.getElementById('loading-bar');
+    if (loadingBar) {
+        loadingBar.style.display = show ? 'block' : 'none';
     }
 }
 
-function showNotification(message, type = 'info') {
-    const notification = document.getElementById('notification');
-    notification.textContent = message;
-    notification.className = `notification ${type}`;
-    notification.style.display = 'block';
+function setLoading(show) {
+    showLoading(show);
+}
+
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        // Fallback to old notification element
+        showNotification(message, type);
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => {
+        toast.classList.add('toast-out');
+        setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 250);
+    });
+    toast.appendChild(closeBtn);
+
+    container.appendChild(toast);
 
     setTimeout(() => {
-        notification.style.display = 'none';
-    }, 3000);
+        toast.classList.add('toast-out');
+        setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 250);
+    }, duration);
+}
+
+function showNotification(message, type = 'info') {
+    // Delegate to new toast system
+    showToast(message, type);
 }
 
 // ========== 輔助功能 ==========

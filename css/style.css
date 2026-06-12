@@ -144,7 +144,46 @@ header h1 {
     color: var(--secondary-color);
 }
 
-/* ========== 主要布局 ========== */
+/* ========== Tab Navigation ========== */
+.edit-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-primary);
+    padding: 4px;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+    border: 1px solid var(--border-light);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--secondary-color);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    background: var(--bg-light);
+    color: var(--text-color);
+}
+
+.tab-btn.active {
+    background: var(--bg-secondary);
+    color: var(--primary-color);
+    box-shadow: var(--shadow);
+}
+
+.tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
 .main-content {
     display: grid;
     grid-template-columns: 380px 1fr;
@@ -180,6 +219,7 @@ header h1 {
 }
 
 .edit-section {
+    position: relative;
     background: var(--bg-secondary);
     padding: 20px;
     border-radius: var(--border-radius);
@@ -360,12 +400,34 @@ input[type="text"]::placeholder {
 }
 
 .batch-canvas-wrap {
+    position: relative;
     max-width: 100%;
     overflow: auto;
     border: 1px solid var(--border-light);
     border-radius: 8px;
     padding: 10px;
     background: var(--bg-primary);
+}
+
+#batchPrevRow, #batchNextRow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+#batchPrevRow {
+    left: 15px;
+}
+
+#batchNextRow {
+    right: 15px;
+}
+
+#batchPrevRow:hover, #batchNextRow:hover {
+    opacity: 1;
 }
 
 .batch-canvas-wrap canvas {
@@ -375,33 +437,101 @@ input[type="text"]::placeholder {
     display: block;
 }
 
+/* Batch Step 1 Preview Area */
+.batch-preview-area {
+    margin-top: 20px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.batch-preview-area table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.batch-preview-area th,
+.batch-preview-area td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+}
+
+.batch-preview-area thead th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    color: var(--secondary-color);
+}
+
+.batch-preview-area tbody td {
+    color: var(--text-color);
+}
+
+
+.batch-canvas-wrap canvas {
+    max-width: 100%;
+    height: auto;
+    border: 1px dashed var(--border-light);
+    display: block;
+}
+
+#batchPrevRow, #batchNextRow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    padding: 8px 12px;
+    font-size: 14px;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+#batchPrevRow {
+    left: 10px;
+}
+
+#batchNextRow {
+    right: 10px;
+}
+
+#batchPrevRow:hover, #batchNextRow:hover {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.05);
+}
+
 /* ========== 推薦選項樣式 ========== */
 .recommended-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: block;
     margin-bottom: 12px;
+}
+
+.palette-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.palette-row:last-child {
+    margin-bottom: 0;
 }
 
 .rec-option {
     cursor: pointer;
     transition: all 0.2s ease;
     border: 2px solid transparent;
+    display: inline-flex;
+    border-radius: 50%;
 }
 
 .rec-option:hover {
-    transform: scale(1.1);
+    transform: scale(1.15);
 }
 
 .rec-option.is-active {
     border-color: var(--primary-color);
-}
-
-#recommendedBgColors .rec-option.is-active,
-#recommendedTextColors .rec-option.is-active,
-#objectRecommendedBgColors .rec-option.is-active,
-#objectRecommendedTextColors .rec-option.is-active {
-    border-radius: 50%;
 }
 
 .rec-color {
@@ -580,6 +710,11 @@ input[type="checkbox"] {
 
 .btn-primary:active {
     transform: translateY(0);
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 13px;
 }
 
 .btn-success {
@@ -1035,6 +1170,19 @@ input[type="checkbox"] {
     margin-bottom: 12px;
 }
 
+.batch-preview-area {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 14px;
+    color: var(--secondary-color);
+}
+
 .batch-summary {
     padding: 12px;
     border-radius: 6px;
@@ -1191,6 +1339,373 @@ input[type="checkbox"] {
 .batch-status-pill.failed {
     background: rgba(239, 68, 68, 0.14);
     color: #b91c1c;
+}
+
+/* ========== 批量步驟工作流程 ========== */
+.batch-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 24px;
+    padding: 16px 0;
+}
+.batch-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-light);
+    opacity: 0.5;
+    transition: all 0.3s ease;
+    user-select: none;
+    cursor: pointer;
+}
+.batch-step.is-active {
+    opacity: 1;
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.08);
+}
+.batch-step.is-completed {
+    opacity: 0.8;
+    border-color: var(--success-color);
+}
+.batch-step:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.batch-step-number {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    background: var(--border-light);
+    color: var(--secondary-color);
+}
+.batch-step.is-active .batch-step-number {
+    background: var(--primary-color);
+    color: white;
+}
+.batch-step.is-completed .batch-step-number {
+    background: var(--success-color);
+    color: white;
+}
+.batch-step-label {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+}
+.batch-step-connector {
+    width: 60px;
+    height: 2px;
+    background: var(--border-light);
+}
+.batch-step-content:not(.is-active) {
+    display: none;
+}
+.batch-step-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+}
+
+/* ========== 批量表格工具列（搜尋 + 批量操作） ========== */
+.batch-table-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.batch-search-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--bg-primary);
+    color: var(--text-color);
+    font-family: inherit;
+}
+.batch-search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.batch-search-count {
+    font-size: 13px;
+    color: var(--secondary-color);
+    white-space: nowrap;
+}
+.batch-check-col {
+    width: 40px;
+    text-align: center;
+    vertical-align: middle;
+}
+.batch-check-col input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* ========== 欄位對應說明 Modal ========== */
+.batch-help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--secondary-color);
+    background: transparent;
+    color: var(--secondary-color);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-left: 8px;
+    vertical-align: middle;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+.batch-help-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.08);
+}
+.batch-mapping-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+.batch-mapping-panel {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    width: 560px;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+}
+.batch-mapping-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-light);
+}
+.batch-mapping-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+.batch-mapping-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--secondary-color);
+    padding: 0 4px;
+    line-height: 1;
+}
+.batch-mapping-close:hover {
+    color: var(--text-color);
+}
+.batch-mapping-body {
+    padding: 20px;
+    overflow-y: auto;
+}
+.batch-mapping-body > p {
+    margin-top: 0;
+    font-size: 14px;
+    color: var(--secondary-color);
+}
+.batch-mapping-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.batch-mapping-table th,
+.batch-mapping-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+}
+.batch-mapping-table th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+.batch-mapping-table .mapping-required {
+    color: #dc2626;
+    font-weight: 600;
+}
+.batch-mapping-table .mapping-optional {
+    color: #2563eb;
+    font-weight: 600;
+}
+.batch-mapping-table .mapping-device {
+    color: #7c3aed;
+    font-weight: 600;
+}
+.batch-mapping-table .mapping-object-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--secondary-color);
+}
+.batch-mapping-note {
+    padding: 12px;
+    border-radius: 6px;
+    background: rgba(37, 99, 235, 0.08);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+}
+
+/* ========== 批次縮圖預覽廊 ========== */
+.batch-gallery-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 8px 4px;
+    min-height: 100px;
+    scroll-behavior: smooth;
+}
+.batch-gallery-strip::-webkit-scrollbar {
+    height: 6px;
+}
+.batch-gallery-strip::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-radius: 3px;
+}
+.batch-gallery-strip::-webkit-scrollbar-thumb {
+    background: var(--border-light);
+    border-radius: 3px;
+}
+.batch-gallery-item {
+    flex: 0 0 auto;
+    width: 160px;
+    border: 2px solid var(--border-light);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bg-secondary);
+}
+.batch-gallery-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+.batch-gallery-item.is-active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+.batch-gallery-item canvas,
+.batch-gallery-item img {
+    width: 100%;
+    height: 96px;
+    object-fit: cover;
+    display: block;
+}
+.batch-gallery-item-label {
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--secondary-color);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.batch-gallery-empty {
+    width: 100%;
+    text-align: center;
+    padding: 32px 0;
+    color: var(--secondary-color);
+    font-size: 14px;
+}
+
+/* ========== 批量輸出進度覆蓋層 ========== */
+.batch-export-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+.batch-export-panel {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 420px;
+    max-width: 520px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+}
+.batch-export-panel h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+}
+.batch-export-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.batch-export-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--primary-color);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+.batch-export-progress-text {
+    text-align: center;
+    font-size: 14px;
+    color: var(--secondary-color);
+    margin-bottom: 12px;
+}
+.batch-export-log {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 240px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    font-family: monospace;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+.batch-export-log .log-entry {
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+.batch-export-log .log-entry.log-success {
+    color: #047857;
+}
+.batch-export-log .log-entry.log-error {
+    color: #b91c1c;
+}
+.batch-export-log .log-entry.log-info {
+    color: var(--secondary-color);
 }
 
 .device-editor-grid,
@@ -1640,19 +2155,55 @@ input[type="checkbox"] {
 }
 
 /* ========== 通知提示 ========== */
-.notification {
+.loading-bar {
     position: fixed;
-    top: 80px;
-    right: 20px;
-    padding: 16px 20px;
-    border-radius: 6px;
-    box-shadow: var(--shadow-lg);
-    z-index: 1001;
-    animation: slideIn 0.3s ease;
-    max-width: 400px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-light, #5b9bd5) 50%, var(--primary-color) 100%);
+    background-size: 200% 100%;
+    animation: loadingBarMove 1.2s ease infinite;
+    z-index: 9999;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 
-@keyframes slideIn {
+@keyframes loadingBarMove {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    animation: toastIn 0.3s ease;
+    max-width: 400px;
+    font-size: 14px;
+    line-height: 1.5;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    word-break: break-word;
+}
+
+.toast.toast-out {
+    animation: toastOut 0.25s ease forwards;
+}
+
+@keyframes toastIn {
     from {
         transform: translateX(100%);
         opacity: 0;
@@ -1663,19 +2214,193 @@ input[type="checkbox"] {
     }
 }
 
-.notification.success {
+@keyframes toastOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.toast.success {
     background-color: var(--success-color);
     color: white;
 }
 
-.notification.error {
+.toast.error {
     background-color: var(--danger-color);
     color: white;
 }
 
-.notification.info {
+.toast.info {
     background-color: var(--primary-color);
     color: white;
+}
+
+.toast.warning {
+    background-color: var(--warning-color, #f59e0b);
+    color: white;
+}
+
+.toast .toast-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 0 0 8px;
+    opacity: 0.7;
+}
+
+.toast .toast-close:hover {
+    opacity: 1;
+}
+
+/* ========== 分頁工具提示 ========== */
+.tab-tooltip {
+    position: fixed;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 10px 14px;
+    max-width: 260px;
+    width: max-content;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 9999;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+    animation: tooltipIn 0.2s ease;
+    pointer-events: auto;
+}
+
+.tab-tooltip p {
+    margin: 0;
+}
+
+@keyframes tooltipIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 功能提示按鈕（？） ========== */
+.section-help-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 2;
+    user-select: none;
+}
+
+.section-help-btn:hover {
+    background: var(--bg-light);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+/* ========== 新增物件按鈕與彈窗 ========== */
+.add-object-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 8px;
+}
+
+.add-object-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+
+.add-object-modal-content {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    text-align: center;
+    min-width: 280px;
+}
+
+.add-object-modal-content h4 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+.add-object-options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.add-object-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 8px;
+    border: 2px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-object-option:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-light);
+    transform: translateY(-2px);
+}
+
+.add-object-option-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.add-object-option-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.add-object-modal-close {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 6px 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-object-modal-close:hover {
+    background: var(--bg-light);
+    color: var(--text-color);
 }
 
 /* ========== 頁尾 ========== */

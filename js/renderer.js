@@ -3,7 +3,11 @@
  */
 class NameplateRenderer {
     constructor(canvasId) {
-        this.canvas = document.getElementById(canvasId);
+        if (typeof canvasId === 'string') {
+            this.canvas = document.getElementById(canvasId);
+        } else if (canvasId instanceof HTMLCanvasElement) {
+            this.canvas = canvasId;
+        }
         this.ctx = this.canvas.getContext('2d');
         this.bgImage = null;
         this.qrImage = null;

@@ -26,53 +26,26 @@
         <div class="main-content">
             <!-- 左側編輯面板 -->
             <aside class="edit-panel">
-                <!-- 快速預設 -->
-                <section class="edit-section presets presets-in-editor">
-                    <h3>快速預設</h3>
-                    <div class="preset-buttons">
-                        <button class="preset-btn" data-preset="corporate">企業風格</button>
-                        <button class="preset-btn" data-preset="blue">藍色優雅</button>
-                        <button class="preset-btn" data-preset="modern">現代簡約</button>
-                        <button class="preset-btn" data-preset="tech">科技感</button>
-                    </div>
-                </section>
+                <nav class="edit-tabs">
+                    <button class="tab-btn active" data-tab="canvas">畫布設定</button>
+                    <button class="tab-btn" data-tab="objects">物件編輯</button>
+                    <button class="tab-btn" data-tab="device">設備控制</button>
+                    <button class="tab-btn" data-tab="upload">上傳管理</button>
+                </nav>
+                <div class="tab-content" data-tab="canvas">
+                    <!-- 快速預設 -->
+                    <section class="edit-section presets presets-in-editor" data-intro="快速套用專業設計的主題配色與字型設定。">
+                        <h3>快速預設</h3>
+                        <div class="preset-buttons">
+                            <button class="preset-btn" data-preset="corporate">企業風格</button>
+                            <button class="preset-btn" data-preset="blue">藍色優雅</button>
+                            <button class="preset-btn" data-preset="modern">現代簡約</button>
+                            <button class="preset-btn" data-preset="tech">科技感</button>
+                        </div>
+                    </section>
 
-                <section class="edit-section" hidden>
-                    <h2>基本資訊</h2>
-                    
-                    <div class="form-group">
-                        <label for="nameInput">姓名</label>
-                        <input 
-                            type="text" 
-                            id="nameInput" 
-                            placeholder="輸入參與者名字"
-                            maxlength="20"
-                        >
-                        <span class="char-count"><span id="charCount">0</span>/20</span>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="companyInput">公司/部門</label>
-                        <input 
-                            type="text" 
-                            id="companyInput" 
-                            placeholder="輸入公司或部門（可選）"
-                            maxlength="30"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="positionInput">職位</label>
-                        <input 
-                            type="text" 
-                            id="positionInput" 
-                            placeholder="輸入職位（可選）"
-                            maxlength="30"
-                        >
-                    </div>
-                </section>
-
-                <section class="edit-section">
+                <section class="edit-section" data-intro="調整桌牌畫布的比例與尺寸，建議使用 800×480 px 的標準規格。">
                     <h2>尺寸比例</h2>
 
                     <div class="form-group">
@@ -149,7 +122,7 @@
                         </button>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="bgOpacityGroup" style="display: none;">
                         <label for="bgOpacity">圖片透明度</label>
                         <div class="opacity-control">
                             <input 
@@ -161,6 +134,27 @@
                             >
                             <span id="opacityValue">100%</span>
                         </div>
+                    </div>
+                </section>
+            </div>
+                <div class="tab-content" data-tab="objects" hidden>
+                    <section class="edit-section" hidden>
+                        <h2>基本資訊</h2>
+
+                    <div class="form-group">
+                        <label for="nameInput">姓名</label>
+                        <input type="text" id="nameInput" placeholder="輸入參與者名字" maxlength="20">
+                        <span class="char-count"><span id="charCount">0</span>/20</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="companyInput">公司/部門</label>
+                        <input type="text" id="companyInput" placeholder="輸入公司或部門（可選）" maxlength="30">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="positionInput">職位</label>
+                        <input type="text" id="positionInput" placeholder="輸入職位（可選）" maxlength="30">
                     </div>
                 </section>
 
@@ -526,6 +520,14 @@
                 <section class="edit-section object-manager-section">
                     <h2>圖片內容管理</h2>
 
+                    <div class="object-manager-create">
+                        <button id="addObjectBtn" class="btn btn-primary add-object-btn" type="button">＋ 新增物件</button>
+                        <!-- Hidden inputs kept for programmatic use -->
+                        <input type="file" id="objectImageFileInput" accept="image/*" class="file-input" style="display:none;">
+                        <input type="text" id="objectTextInput" placeholder="輸入文字內容" style="display:none;">
+                        <input type="url" id="objectQrUrlInput" placeholder="https://example.com" style="display:none;">
+                    </div>
+
                     <div class="object-manager-toolbar" hidden>
                         <button id="deleteSelectedObjectBtn" class="btn btn-secondary" type="button">刪除目前選取物件</button>
                     </div>
@@ -619,40 +621,13 @@
 
                     <div class="object-manager-divider" aria-hidden="true"></div>
 
-                    <div class="object-manager-create">
-                        <h3>新增物件</h3>
-
-                        <div class="form-group">
-                            <label for="objectTextInput">新增文字方塊</label>
-                            <div class="custom-ratio-group">
-                                <input type="text" id="objectTextInput" placeholder="輸入文字內容">
-                                <button id="addTextObjectBtn" class="btn btn-secondary" type="button">新增文字</button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="objectQrUrlInput">新增 QRCode 物件</label>
-                            <div class="custom-ratio-group">
-                                <input type="url" id="objectQrUrlInput" placeholder="https://example.com">
-                                <button id="addQrObjectBtn" class="btn btn-secondary" type="button">新增 QRCode</button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="objectImageFileInput">新增小圖片物件</label>
-                            <div class="custom-ratio-group">
-                                <input type="file" id="objectImageFileInput" accept="image/*" class="file-input">
-                                <button id="addImageObjectBtn" class="btn btn-secondary" type="button">新增小圖片</button>
-                            </div>
-                        </div>
-                    </div>
-
                      <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
                      <p class="batch-helper-text" style="margin-top: 8px; color: var(--text-muted);">💡 提示：點擊物件可修改詳細設定，拖曳物件可調整圖層上下順序。</p>
-                 </section>
+                </div>
+                <div class="tab-content" data-tab="device" hidden>
+                    <section class="edit-section batch-section" hidden>
+                        <h2>批量生產</h2>
 
-                <section class="edit-section batch-section" hidden>
-                    <h2>批量生產</h2>
 
                     <div class="form-group hint batch-status-box">
                         <p>批量生產已改為獨立頁面，可依目前左側已完成的版型與物件設定，自動生成對應欄位。</p>
@@ -950,7 +925,9 @@
                         <pre id="apiResultOutput" class="api-result-output">尚未呼叫 API</pre>
                     </div>
                 </section>
+            </div>
 
+            <div class="tab-content" data-tab="upload" hidden>
                 <section class="action-section">
                     <div class="upload-direct-block">
                         <div class="form-group">
@@ -983,6 +960,7 @@
                         🔄 重置
                     </button>
                 </section>
+            </div>
             </aside>
 
             <!-- 右側預覽面板 -->
@@ -1056,7 +1034,34 @@
     </div>
 
     <!-- 成功提示 -->
-    <div id="notification" class="notification" style="display: none;"></div>
+    <div id="loading-bar" class="loading-bar" style="display: none;"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="tab-tooltip" class="tab-tooltip" style="display: none;">
+        <p id="tab-tooltip-text"></p>
+    </div>
+
+    <!-- 新增物件類型選擇彈窗 -->
+    <div id="addObjectModal" class="add-object-modal" style="display: none;">
+        <div class="add-object-modal-content">
+            <h4>選擇要新增的物件類型</h4>
+            <div class="add-object-options">
+                <button class="add-object-option" data-type="text">
+                    <span class="add-object-option-icon">Aa</span>
+                    <span class="add-object-option-label">文字</span>
+                </button>
+                <button class="add-object-option" data-type="image">
+                    <span class="add-object-option-icon">🖼</span>
+                    <span class="add-object-option-label">圖片</span>
+                </button>
+                <button class="add-object-option" data-type="qr">
+                    <span class="add-object-option-icon">▦</span>
+                    <span class="add-object-option-label">QRCode</span>
+                </button>
+            </div>
+            <button class="add-object-modal-close" type="button">取消</button>
+        </div>
+    </div>
 
     <script src="js/vendor/qrcode.min.js"></script>
     <script src="js/vendor/jszip.min.js"></script>

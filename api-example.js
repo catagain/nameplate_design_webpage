@@ -50,6 +50,7 @@ const uploadDir = path.join(__dirname, 'uploads');
 const callbackLogPath = path.join(uploadDir, 'philips-callbacks.json');
 const uploadAccessLogPath = path.join(uploadDir, 'upload-access-log.json');
 const philipsDevicesPath = path.join(uploadDir, 'philips-devices.json');
+const batchStorePath = path.join(uploadDir, 'batch-store.json');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -64,6 +65,10 @@ if (!fs.existsSync(uploadAccessLogPath)) {
 
 if (!fs.existsSync(philipsDevicesPath)) {
     fs.writeFileSync(philipsDevicesPath, '[]', 'utf8');
+}
+
+if (!fs.existsSync(batchStorePath)) {
+    fs.writeFileSync(batchStorePath, '[]', 'utf8');
 }
 
 function appendLimitedJsonLog(filePath, record, limit = 500) {
@@ -497,6 +502,110 @@ function requestPhilipsDevice(device, requestPath, options = {}) {
     });
 }
 
+function readBatchStore() {
+    try {
+        const raw = fs.readFileSync(batchStorePath, 'utf8');
+        return JSON.parse(raw);
+    } catch (error) {
+        return [];
+    }
+}
+
+function writeBatchStore(list) {
+    fs.writeFileSync(batchStorePath, JSON.stringify(list, null, 2), 'utf8');
+}
+
+/**
+ * 批量生產數據儲存 API
+ */
+app.post('/api/batch/save', (req, res) => {
+    try {
+        const { name, rows, schema } = req.body;
+        if (!name || !rows || !schema) {
+            return res.status(400).json({
+                success: false,
+                error: '缺少必需字段: name, rows 或 schema'
+            });
+        }
+
+        const store = readBatchStore();
+        const id = `batch_${Date.now()}`;
+        const record = {
+            id,
+            name,
+            rows,
+            schema,
+            rowCount: rows.length,
+            createdAt: new Date().toISOString()
+        };
+
+        store.push(record);
+        writeBatchStore(store);
+
+        res.json({
+            success: true,
+            id,
+            message: '批量數據保存成功'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '保存失敗',
+            message: error.message
+        });
+    }
+});
+
+app.get('/api/batch/list', (req, res) => {
+    try {
+        const store = readBatchStore();
+        const list = store.map(item => ({
+            id: item.id,
+            name: item.name,
+            rowCount: item.rowCount,
+            createdAt: item.createdAt
+        }));
+
+        res.json({
+            success: true,
+            count: list.length,
+            data: list
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '獲取列表失敗',
+            message: error.message
+        });
+    }
+});
+
+app.get('/api/batch/load/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const store = readBatchStore();
+        const item = store.find(i => i.id === id);
+
+        if (!item) {
+            return res.status(404).json({
+                success: false,
+                error: '找不到該批量數據'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: item
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '載入失敗',
+            message: error.message
+        });
+    }
+});
+
 /**
  * 健康檢查端點
  */
@@ -570,6 +679,97 @@ app.get('/api/philips/devices', (req, res) => {
         count: devices.length,
         data: devices
     });
+});
+
+/**
+ * 批量生產數據儲存 API
+ */
+app.post('/api/batch/save', (req, res) => {
+    try {
+        const { name, rows, schema } = req.body;
+        if (!name || !rows || !schema) {
+            return res.status(400).json({
+                success: false,
+                error: '缺少必需字段: name, rows 或 schema'
+            });
+        }
+
+        const store = readBatchStore();
+        const id = `batch_${Date.now()}`;
+        const record = {
+            id,
+            name,
+            rows,
+            schema,
+            rowCount: rows.length,
+            createdAt: new Date().toISOString()
+        };
+
+        store.push(record);
+        writeBatchStore(store);
+
+        res.json({
+            success: true,
+            id,
+            message: '批量數據保存成功'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '保存失敗',
+            message: error.message
+        });
+    }
+});
+
+app.get('/api/batch/list', (req, res) => {
+    try {
+        const store = readBatchStore();
+        const list = store.map(item => ({
+            id: item.id,
+            name: item.name,
+            rowCount: item.rowCount,
+            createdAt: item.createdAt
+        }));
+
+        res.json({
+            success: true,
+            count: list.length,
+            data: list
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '獲取列表失敗',
+            message: error.message
+        });
+    }
+});
+
+app.get('/api/batch/load/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const store = readBatchStore();
+        const item = store.find(i => i.id === id);
+
+        if (!item) {
+            return res.status(404).json({
+                success: false,
+                error: '找不到該批量數據'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: item
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: '載入失敗',
+            message: error.message
+        });
+    }
 });
 
 app.post('/api/philips/devices', (req, res) => {

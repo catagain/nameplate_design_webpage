@@ -18,64 +18,159 @@
             </div>
         </header>
 
-        <section class="edit-section">
-            <div class="batch-page-toolbar">
-                <a class="btn btn-secondary" href="index.html">返回編輯頁</a>
+        <!-- 步驟指示器 -->
+        <div class="batch-steps">
+            <div class="batch-step is-active" data-step="1">
+                <span class="batch-step-number">1</span>
+                <span class="batch-step-label">匯入資料</span>
             </div>
-
-            <div class="form-group hint batch-status-box">
-                <p id="batchStatusText">載入中...</p>
+            <div class="batch-step-connector"></div>
+            <div class="batch-step" data-step="2">
+                <span class="batch-step-number">2</span>
+                <span class="batch-step-label">檢視與編輯</span>
             </div>
-        </section>
-
-        <section class="edit-section">
-            <h2>資料來源</h2>
-            <div class="form-group">
-                <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
-                <input
-                    type="file"
-                    id="batchCsvInput"
-                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                    class="file-input"
-                >
-                <p class="batch-helper-text">檔案標題列需使用目前版型對應的欄位 key。欄位可多可少；若填寫 deviceTarget（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
+            <div class="batch-step-connector"></div>
+            <div class="batch-step" data-step="3">
+                <span class="batch-step-number">3</span>
+                <span class="batch-step-label">批量輸出</span>
             </div>
+        </div>
 
-            <datalist id="deviceTargetSuggestions"></datalist>
+        <!-- 步驟 1：匯入資料 -->
+        <div class="batch-step-content is-active" data-step="1">
+            <section class="edit-section">
+                <div class="batch-page-toolbar">
+                    <a class="btn btn-secondary" href="index.html">返回編輯頁</a>
+                </div>
 
-            <div class="batch-toolbar">
-                <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
-                <button id="batchDownloadCsvBtn" class="btn btn-secondary" type="button">下載目前表格 CSV</button>
-                <button id="batchAddRowBtn" class="btn btn-secondary" type="button">新增一列</button>
-                <button id="batchClearBtn" class="btn btn-secondary" type="button">清除資料</button>
+                <div class="form-group hint batch-status-box">
+                    <p id="batchStatusText">載入中...</p>
+                </div>
+            </section>
+
+            <section class="edit-section">
+                <h2>
+                    資料來源
+                    <button type="button" class="batch-help-btn" id="batchMappingGuideBtn" title="欄位對應說明">?</button>
+                </h2>
+                <div class="form-group">
+                    <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
+                    <input
+                        type="file"
+                        id="batchCsvInput"
+                        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                        class="file-input"
+                    >
+                    <p class="batch-helper-text">檔案標題列需使用目前版型對應的欄位 key。欄位可多可少；若填寫 deviceTarget（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
+                </div>
+
+                <datalist id="deviceTargetSuggestions"></datalist>
+
+                <div id="batchSchemaSummary" class="batch-schema-list"></div>
+
+                    <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
+                <div id="batchStep1Preview" class="batch-preview-area"></div>
+            </section>
+
+            <div class="batch-step-footer">
+                <button class="btn btn-primary" data-action="next-step">開始編輯</button>
             </div>
-        </section>
+        </div>
 
-        <section class="edit-section">
-            <h2>批量資料表</h2>
-            <div class="batch-summary" id="batchSummary">尚未建立資料</div>
+        <!-- 步驟 2：檢視與編輯 -->
+        <div class="batch-step-content" data-step="2">
+            <section class="edit-section">
+                <h2>批量資料表</h2>
+                <div class="batch-summary" id="batchSummary">尚未建立資料</div>
 
-            <div class="batch-preview-wrapper">
-                <table class="batch-preview-table">
-                    <thead id="batchPreviewHead"></thead>
-                    <tbody id="batchPreviewBody"></tbody>
-                </table>
+                <div class="batch-table-toolbar">
+                    <input type="text" id="batchSearchInput" class="batch-search-input" placeholder="搜尋所有欄位...">
+                    <span class="batch-search-count" id="batchSearchCount"></span>
+                    <button id="batchDeleteSelectedBtn" class="btn btn-secondary" type="button">刪除選取列</button>
+                    <button id="batchAddRowBtn" class="btn btn-secondary" type="button">新增一列</button>
+                    <button id="batchClearBtn" class="btn btn-secondary" type="button">清除資料</button>
+                    <button id="batchDownloadCsvBtn" class="btn btn-secondary" type="button">下載表格 CSV</button>
+                    <button id="batchSaveLocalBtn" class="btn btn-primary" type="button">儲存至本機</button>
+                    <button id="batchSaveServerBtn" class="btn btn-primary" type="button">儲存至伺服器</button>
+                </div>
+
+                <div class="batch-preview-wrapper">
+                    <table class="batch-preview-table">
+                        <thead id="batchPreviewHead"></thead>
+                        <tbody id="batchPreviewBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="edit-section">
+                <h2>版型預覽</h2>
+                <p class="batch-helper-text">批量輸出會使用下方同一個版型逐列套值輸出 PNG。</p>
+                <div class="batch-canvas-wrap">
+                    <button id="batchPrevRow" class="btn btn-sm btn-secondary">← 上一筆</button>
+                    <canvas id="batchCanvas" width="800" height="480"></canvas>
+                    <button id="batchNextRow" class="btn btn-sm btn-secondary">下一筆 →</button>
+                </div>
+            </section>
+
+            <section class="edit-section">
+                <h2>批次縮圖預覽</h2>
+                <div class="batch-gallery-strip" id="batchGalleryStrip">
+                    <div class="batch-gallery-empty">尚無資料，請先匯入資料</div>
+                </div>
+            </section>
+
+            <div class="batch-step-footer">
+                <button class="btn btn-secondary" data-action="prev-step">上一步</button>
+                <button class="btn btn-primary" data-action="next-step">下一步</button>
             </div>
-        </section>
+        </div>
 
-        <section class="edit-section">
-            <h2>版型預覽</h2>
-            <p class="batch-helper-text">批量輸出會使用下方同一個版型逐列套值輸出 PNG。</p>
-            <div class="batch-canvas-wrap">
-                <canvas id="batchCanvas" width="800" height="480"></canvas>
-            </div>
-        </section>
+        <!-- 步驟 3：批量輸出 -->
+        <div class="batch-step-content" data-step="3">
+            <section class="edit-section">
+                <div class="batch-page-toolbar">
+                    <button id="batchExportBtn" class="btn btn-success" type="button">批量輸出</button>
+                </div>
+            </section>
 
-        <section class="edit-section">
-            <div class="batch-page-toolbar">
-                <button id="batchExportBtn" class="btn btn-success" type="button">批量輸出</button>
+            <div class="batch-step-footer">
+                <button class="btn btn-secondary" data-action="prev-step">上一步</button>
             </div>
-        </section>
+        </div>
+    </div>
+
+    <!-- 批量輸出進度覆蓋層 -->
+    <div id="batchExportOverlay" class="batch-export-overlay" style="display:none;">
+        <div class="batch-export-panel">
+            <h3>批量輸出中...</h3>
+            <div class="batch-export-progress-bar">
+                <div id="batchExportProgressFill" class="batch-export-progress-fill"></div>
+            </div>
+            <div class="batch-export-progress-text">
+                <span id="batchExportProgressLabel">0 / 0</span>
+            </div>
+            <div class="batch-export-log" id="batchExportLog">
+                <!-- 即時輸出記錄 -->
+            </div>
+            <button id="batchExportCancelBtn" class="btn btn-secondary" type="button">取消輸出</button>
+        </div>
+    </div>
+
+    <!-- 欄位對應說明 Modal -->
+    <div id="batchMappingGuide" class="batch-mapping-overlay" style="display:none;">
+        <div class="batch-mapping-panel">
+            <div class="batch-mapping-header">
+                <h3>欄位對應說明</h3>
+                <button type="button" class="batch-mapping-close" id="batchMappingCloseBtn">&times;</button>
+            </div>
+            <div class="batch-mapping-body">
+                <p>上傳的 CSV / XLSX 檔案標題列需使用以下欄位 key，系統會自動對應到版型中的物件：</p>
+                <div id="batchMappingContent"></div>
+                <div class="batch-mapping-note">
+                    <strong>提示：</strong>deviceTarget 為特殊欄位，填入桌牌名稱或 IP 後，輸出 ZIP 會自動依桌牌分資料夾；若已設定桌牌清單，可輸入名稱或 IP 進行推播。
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="js/vendor/jszip.min.js"></script>

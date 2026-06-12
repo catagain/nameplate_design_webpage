@@ -15,8 +15,11 @@ const batchState = {
     template: null,
     schema: null,
     rows: [],
+    currentPreviewIndex: 0,
     qrCache: new Map(),
     renderer: null,
+    exportCancel: false,
+    searchQuery: '',
     philips: {
         serverPort: 3001,
         publicBaseUrl: '',
@@ -39,7 +42,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await initializeRendererAssets();
         attachEventListeners();
+        goToStep(1);
         renderSchemaSummary();
+        renderMappingContent();
         addEmptyRow();
         setStatus('已載入目前版型。可上傳檔案或直接在表格編輯資料。');
     } catch (error) {
@@ -53,6 +58,43 @@ function setStatus(message) {
     if (node) {
         node.textContent = message;
     }
+}
+
+function showExportOverlay(totalRows) {
+    document.getElementById('batchExportOverlay').style.display = 'flex';
+    document.getElementById('batchExportProgressFill').style.width = '0%';
+    document.getElementById('batchExportProgressLabel').textContent = `0 / ${totalRows}`;
+    document.getElementById('batchExportLog').innerHTML = '';
+    batchState.exportCancel = false;
+}
+
+function hideExportOverlay() {
+    document.getElementById('batchExportOverlay').style.display = 'none';
+}
+
+function appendExportLog(message, type = 'info') {
+    const log = document.getElementById('batchExportLog');
+    const entry = document.createElement('div');
+    entry.className = `log-entry log-${type}`;
+    entry.textContent = message;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+function goToStep(step) {
+    document.querySelectorAll('.batch-step').forEach(el => el.classList.remove('is-active', 'is-completed'));
+    document.querySelectorAll('.batch-step-content').forEach(el => el.classList.remove('is-active'));
+
+    for (let i = 1; i < step; i++) {
+        const prevStep = document.querySelector(`.batch-step[data-step="${i}"]`);
+        if (prevStep) prevStep.classList.add('is-completed');
+    }
+
+    const current = document.querySelector(`.batch-step[data-step="${step}"]`);
+    if (current) current.classList.add('is-active');
+
+    const content = document.querySelector(`.batch-step-content[data-step="${step}"]`);
+    if (content) content.classList.add('is-active');
 }
 
 function escapeHtml(value) {
@@ -736,7 +778,7 @@ function applyTheme(theme) {
 }
 
 function renderSchemaSummary() {
-    const container = document.getElementById('columnSchemaSummary');
+    const container = document.getElementById('batchSchemaSummary');
     if (!container) {
         return;
     }
@@ -766,6 +808,120 @@ function renderSchemaSummary() {
             <div class="batch-schema-row">${optionalHtml}</div>
         </div>
     `;
+}
+
+function renderMappingContent() {
+    const container = document.getElementById('batchMappingContent');
+    if (!container || !batchState.schema) return;
+
+    const getRequiredLabel = (column) => {
+        if (column.key === 'deviceTarget') return '<span class="mapping-device">選擇性</span>';
+        return batchState.schema.required.includes(column)
+            ? '<span class="mapping-required">必填</span>'
+            : '<span class="mapping-optional">選填</span>';
+    };
+
+    let html = `<table class="batch-mapping-table">
+        <thead><tr><th>欄位 Key</th><th>顯示名稱</th><th>類型</th><th>對應物件</th><th>必填</th></tr></thead><tbody>`;
+
+    batchState.schema.all.forEach(col => {
+        const typeLabel = col.key === 'deviceTarget' ? '<span class="mapping-device">桌牌</span>'
+            : col.type === 'url' ? '<span class="mapping-optional">連結</span>'
+            : '<span class="mapping-required">文字</span>';
+        html += `<tr>
+            <td><code>${escapeHtml(col.key)}</code></td>
+            <td>${escapeHtml(col.label)}</td>
+            <td>${typeLabel}</td>
+            <td><span class="mapping-object-id">${escapeHtml(col.target || '-')}</span></td>
+            <td>${getRequiredLabel(col)}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderGalleryStrip() {
+    const strip = document.getElementById('batchGalleryStrip');
+    if (!strip) return;
+
+    if (!batchState.rows.length) {
+        strip.innerHTML = '<div class="batch-gallery-empty">尚無資料，請先匯入資料</div>';
+        return;
+    }
+
+    let html = '';
+
+    for (let i = 0; i < batchState.rows.length; i++) {
+        const row = batchState.rows[i];
+        const name = String(row.name || row.company || row.position || `第 ${i + 1} 列`).trim();
+        html += `
+            <div class="batch-gallery-item" data-row-index="${i}" title="${escapeHtml(name)}">
+                <div class="batch-gallery-item-label">${escapeHtml(name)}</div>
+            </div>
+        `;
+    }
+
+    strip.innerHTML = html;
+
+    // Attach click listeners
+    strip.querySelectorAll('.batch-gallery-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const idx = parseInt(item.dataset.rowIndex, 10);
+            strip.querySelectorAll('.batch-gallery-item').forEach(el => el.classList.remove('is-active'));
+            item.classList.add('is-active');
+            applyRowPreview(batchState.rows[idx]);
+            setStatus(`已套用第 ${idx + 1} 列預覽`);
+        });
+    });
+
+    // Render thumbnails asynchronously
+    renderGalleryThumbnails();
+}
+
+async function renderGalleryThumbnails() {
+    const items = document.querySelectorAll('.batch-gallery-item');
+    if (!items.length) return;
+
+    const originalState = window.nameplateState;
+
+    for (const item of items) {
+        const idx = parseInt(item.dataset.rowIndex, 10);
+        const row = batchState.rows[idx];
+        if (!row) continue;
+
+        try {
+            const nextState = cloneJson(batchState.template.state);
+            batchState.schema.required.forEach((column) => {
+                applyTextColumnToState(nextState, column, row);
+            });
+            const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+
+            // Create a temporary offscreen canvas for thumbnail
+            const ratio = batchState.template.aspectRatio || {};
+            const canvasW = Number.isFinite(ratio.canvasWidth) ? ratio.canvasWidth : 800;
+            const canvasH = Number.isFinite(ratio.canvasHeight) ? ratio.canvasHeight : 480;
+            const offscreen = document.createElement('canvas');
+            offscreen.width = canvasW;
+            offscreen.height = canvasH;
+            const miniRenderer = new NameplateRenderer(offscreen);
+            miniRenderer.setBackgroundOpacity(batchState.template.opacity || 100);
+            if (batchState.template.bgImageDataUrl) {
+                miniRenderer.setBackgroundImageDataUrl(batchState.template.bgImageDataUrl);
+            }
+            await miniRenderer.setQrCodeDataUrl(defaultQrDataUrl || '');
+            miniRenderer.render(nextState);
+
+            const dataUrl = miniRenderer.exportBase64();
+            item.innerHTML = `<img src="${dataUrl}" alt="縮圖"><div class="batch-gallery-item-label">${escapeHtml(String(row.name || row.company || row.position || `第 ${idx + 1} 列`).trim())}</div>`;
+        } catch (e) {
+            console.error('縮圖生成失敗 (row', idx, '):', e);
+        }
+    }
+
+    // Restore original state on the main canvas
+    window.nameplateState = originalState;
+    batchState.renderer.render(originalState);
 }
 
 function createEmptyRow() {
@@ -798,16 +954,57 @@ function updateSummary() {
     node.textContent = `共 ${batchState.rows.length} 列，全部可輸出（空白欄位會維持空白）`;
 }
 
+function getStatusPillHtml(row) {
+    if (!row._exportResult) {
+        return '<span class="batch-status-pill valid">可輸出</span>';
+    }
+    switch (row._exportResult) {
+        case 'success':
+            return '<span class="batch-status-pill exported">已匯出</span>';
+        case 'skipped':
+            return '<span class="batch-status-pill exported">已跳過</span>';
+        case 'failed': {
+            const errorMsg = escapeHtml(row._exportError || '未知錯誤');
+            return `<span class="batch-status-pill failed">失敗</span><span class="batch-row-errors">${errorMsg}</span>`;
+        }
+        default:
+            return '<span class="batch-status-pill valid">可輸出</span>';
+    }
+}
+
 function renderTable() {
     const head = document.getElementById('batchPreviewHead');
     const body = document.getElementById('batchPreviewBody');
+    const step1Preview = document.getElementById('batchStep1Preview');
 
     if (!head || !body) {
         return;
     }
 
+    // Apply search filter
+    let displayRows = batchState.rows;
+    if (batchState.searchQuery) {
+        displayRows = batchState.rows.filter(row => {
+            return batchState.schema.all.some(column => {
+                const val = String(row[column.key] || '').toLowerCase();
+                return val.includes(batchState.searchQuery);
+            });
+        });
+    }
+
+    // Update search count
+    const countNode = document.getElementById('batchSearchCount');
+    if (countNode) {
+        countNode.textContent = batchState.searchQuery
+            ? `篩選 ${displayRows.length} / ${batchState.rows.length} 列`
+            : `共 ${batchState.rows.length} 列`;
+    }
+
+    const totalCols = batchState.schema.all.length + 4; // checkbox + 列 + 狀態 + 操作
+
     head.innerHTML = `
         <tr>
+            <th class="batch-check-col"><input type="checkbox" id="batchSelectAll" title="全選"></th>
             <th>列</th>
             ${batchState.schema.all.map((column) => `<th>${escapeHtml(column.label)}<br><small>${escapeHtml(column.key)}</small></th>`).join('')}
             <th>狀態</th>
@@ -824,14 +1021,22 @@ function renderTable() {
         </tr>
     `;
 
-    if (!batchState.rows.length) {
-        body.innerHTML = `<tr><td colspan="${batchState.schema.all.length + 3}" class="batch-empty-state">尚無資料，請上傳檔案或新增一列</td></tr>`;
+    if (!displayRows.length) {
+        const msg = batchState.searchQuery ? '無符合搜尋條件的資料列' : '尚無資料，請上傳檔案或新增一列';
+        body.innerHTML = `<tr><td colspan="${totalCols}" class="batch-empty-state">${msg}</td></tr>`;
         updateSummary();
+        if (step1Preview) step1Preview.innerHTML = '<div class="batch-empty-state">尚未匯入資料</div>';
         return;
     }
 
-    body.innerHTML = batchState.rows.map((row, rowIndex) => {
-        const statusText = '<span class="batch-status-pill valid">可輸出</span>';
+    body.innerHTML = displayRows.map((row, rowIndex) => {
+        const statusHtml = getStatusPillHtml(row);
+        const resultClass = row._exportResult === 'success' ? 'is-valid'
+            : row._exportResult === 'failed' ? 'is-invalid'
+            : '';
+
+        // Find original index for data operations
+        const originalIndex = batchState.rows.indexOf(row);
 
         const cells = batchState.schema.all.map((column) => {
             const inputType = column.type === 'url' ? 'url' : 'text';
@@ -843,7 +1048,7 @@ function renderTable() {
                         type="${inputType}"
                         ${listAttr}
                         value="${escapeHtml(row[column.key] || '')}"
-                        data-row-index="${rowIndex}"
+                        data-row-index="${originalIndex}"
                         data-key="${escapeHtml(column.key)}"
                         placeholder="${escapeHtml(column.key)}"
                     >
@@ -852,19 +1057,80 @@ function renderTable() {
         }).join('');
 
         return `
-            <tr>
-                <td>${rowIndex + 1}</td>
+            <tr class="${resultClass}">
+                <td class="batch-check-col"><input type="checkbox" class="batch-row-checkbox" data-row-index="${originalIndex}"></td>
+                <td>${originalIndex + 1}</td>
                 ${cells}
-                <td>${statusText}</td>
+                <td>${statusHtml}</td>
                 <td class="batch-row-actions">
-                    <button type="button" class="btn btn-secondary" data-action="preview" data-row-index="${rowIndex}">預覽</button>
-                    <button type="button" class="btn btn-secondary" data-action="delete" data-row-index="${rowIndex}">刪除</button>
+                    <button type="button" class="btn btn-secondary" data-action="preview" data-row-index="${originalIndex}">預覽</button>
+                    <button type="button" class="btn btn-secondary" data-action="delete" data-row-index="${originalIndex}">刪除</button>
                 </td>
             </tr>
         `;
     }).join('');
 
     updateSummary();
+    renderGalleryStrip();
+    renderStep1Preview();
+}
+
+function renderStep1Preview() {
+    const container = document.getElementById('batchStep1Preview');
+    if (!container) return;
+
+    if (!batchState.rows.length) {
+        container.innerHTML = '<div class="batch-empty-state">尚未匯入資料</div>';
+        return;
+    }
+
+    const headers = batchState.schema.all;
+    let html = '<table><thead><tr>';
+    headers.forEach(col => {
+        html += `<th>${escapeHtml(col.label)}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    batchState.rows.slice(0, 10).forEach(row => {
+        html += `<tr>`;
+        headers.forEach(col => {
+            html += `<td>${escapeHtml(row[col.key] || '')}</td>`;
+        });
+        html += `</tr>`;
+    });
+
+    if (batchState.rows.length > 10) {
+        html += `<tr><td colspan="${headers.length}" class="batch-empty-state">... 尚有 ${batchState.rows.length - 10} 筆資料</td></tr>`;
+    }
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+
+
+
+async function saveBatchToServer() {
+    const name = prompt('請輸入批次名稱', 'Untitled Batch') || 'Untitled Batch';
+    setStatus('正在儲存至伺服器...');
+    try {
+        const response = await fetch('/api/batch/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                rows: batchState.rows,
+                schema: batchState.schema
+            })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || '儲存失敗');
+        }
+        setStatus('批次資料已成功儲存至伺服器。');
+    } catch (error) {
+        setStatus(`儲存失敗: ${error.message}`);
+    }
 }
 
 function attachEventListeners() {
@@ -882,6 +1148,10 @@ function attachEventListeners() {
     document.getElementById('batchDownloadCsvBtn').addEventListener('click', downloadCurrentTableCsv);
     document.getElementById('batchCsvInput').addEventListener('change', handleSpreadsheetUpload);
     document.getElementById('batchExportBtn').addEventListener('click', handleBatchExport);
+    document.getElementById('batchSaveLocalBtn').addEventListener('click', downloadCurrentTableCsv);
+    document.getElementById('batchSaveServerBtn').addEventListener('click', saveBatchToServer);
+    document.getElementById('batchPrevRow').addEventListener('click', () => paginatePreview(-1));
+    document.getElementById('batchNextRow').addEventListener('click', () => paginatePreview(1));
     document.getElementById('batchPreviewHead').addEventListener('click', (event) => {
         const btn = event.target.closest('button[data-action="add-row"]');
         if (!btn) {
@@ -930,6 +1200,85 @@ function attachEventListeners() {
             setStatus(`已套用第 ${rowIndex + 1} 列預覽`);
         }
     });
+
+    document.getElementById('batchExportCancelBtn').addEventListener('click', () => {
+        batchState.exportCancel = true;
+        appendExportLog('正在取消輸出... (等待目前列處理完成)', 'info');
+    });
+
+    // 步驟導航（底部按鈕）
+    document.querySelectorAll('[data-action="next-step"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const content = btn.closest('.batch-step-content');
+            const currentStep = parseInt(content.dataset.step, 10);
+            goToStep(currentStep + 1);
+        });
+    });
+    document.querySelectorAll('[data-action="prev-step"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const content = btn.closest('.batch-step-content');
+            const currentStep = parseInt(content.dataset.step, 10);
+            goToStep(currentStep - 1);
+        });
+    });
+
+    // 步驟指示器點擊導航（上方進度條）
+    document.querySelectorAll('.batch-step[data-step]').forEach(el => {
+        el.addEventListener('click', () => {
+            const targetStep = parseInt(el.dataset.step, 10);
+            goToStep(targetStep);
+        });
+    });
+
+    // 搜尋篩選
+    document.getElementById('batchSearchInput').addEventListener('input', (e) => {
+        batchState.searchQuery = e.target.value.trim().toLowerCase();
+        renderTable();
+    });
+
+    // 全選
+    document.getElementById('batchSelectAll').addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.batch-row-checkbox').forEach(cb => cb.checked = checked);
+    });
+
+    // 個別 checkbox 同步全選狀態
+    document.getElementById('batchPreviewBody').addEventListener('change', (e) => {
+        if (e.target.classList.contains('batch-row-checkbox')) {
+            const allCbs = document.querySelectorAll('.batch-row-checkbox');
+            const allChecked = document.querySelectorAll('.batch-row-checkbox:checked');
+            document.getElementById('batchSelectAll').checked = allCbs.length > 0 && allCbs.length === allChecked.length;
+        }
+    });
+
+    // 刪除選取列
+    document.getElementById('batchDeleteSelectedBtn').addEventListener('click', () => {
+        const checked = document.querySelectorAll('.batch-row-checkbox:checked');
+        if (!checked.length) {
+            setStatus('請先選取要刪除的資料列');
+            return;
+        }
+        const indices = Array.from(checked).map(cb => parseInt(cb.dataset.rowIndex, 10)).sort((a, b) => b - a);
+        for (const idx of indices) {
+            batchState.rows.splice(idx, 1);
+        }
+        renderTable();
+        setStatus(`已刪除 ${indices.length} 列`);
+    });
+
+    // 欄位對應說明 Modal
+    document.getElementById('batchMappingGuideBtn').addEventListener('click', () => {
+        document.getElementById('batchMappingGuide').style.display = 'flex';
+        renderMappingContent();
+    });
+    document.getElementById('batchMappingCloseBtn').addEventListener('click', () => {
+        document.getElementById('batchMappingGuide').style.display = 'none';
+    });
+    document.getElementById('batchMappingGuide').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            e.currentTarget.style.display = 'none';
+        }
+    });
 }
 
 function escapeCsvCell(value) {
@@ -947,7 +1296,8 @@ function downloadTextFile(fileName, content, contentType = 'text/csv;charset=utf
 }
 
 function downloadCurrentTemplateCsv() {
-    const headers = batchState.schema.all.map((column) => column.key);
+    const currentSchema = buildSchema(window.nameplateState);
+    const headers = currentSchema.all.map((column) => column.key);
     const content = `\uFEFF${headers.map(escapeCsvCell).join(',')}\n`;
     downloadTextFile('batch-template.csv', content);
 }
@@ -1253,6 +1603,7 @@ async function applyQrColumnsToState(nextState, row) {
 }
 
 async function applyRowPreview(row) {
+    if (!row) return;
     const nextState = cloneJson(batchState.template.state);
 
     batchState.schema.required.forEach((column) => {
@@ -1263,7 +1614,64 @@ async function applyRowPreview(row) {
     window.nameplateState = nextState;
     await batchState.renderer.setQrCodeDataUrl(defaultQrDataUrl);
     batchState.renderer.render(nextState);
+
+    // Update current index to match the row being previewed
+    const idx = batchState.rows.indexOf(row);
+    if (idx !== -1) {
+        batchState.currentPreviewIndex = idx;
+    }
 }
+
+function paginatePreview(direction) {
+    if (!batchState.rows.length) return;
+
+    const oldIndex = batchState.currentPreviewIndex;
+    if (direction === 'next') {
+        batchState.currentPreviewIndex = Math.min(batchState.rows.length - 1, batchState.currentPreviewIndex + 1);
+    } else if (direction === 'prev') {
+        batchState.currentPreviewIndex = Math.max(0, batchState.currentPreviewIndex - 1);
+    }
+
+    if (oldIndex !== batchState.currentPreviewIndex) {
+        const row = batchState.rows[batchState.currentPreviewIndex];
+        applyRowPreview(row);
+        setStatus(`已套用第 ${batchState.currentPreviewIndex + 1} 列預覽`);
+    }
+}
+
+
+async function saveBatchToServer() {
+    try {
+        setStatus('正在儲存資料...');
+        
+        // Local backup
+        localStorage.setItem('batch_data_backup', JSON.stringify(batchState.rows));
+        
+        const response = await fetch('/api/batch/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                rows: batchState.rows,
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`伺服器儲存失敗 (HTTP ${response.status})`);
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || '儲存失敗');
+        }
+
+        setStatus('資料已成功儲存至伺服器與本機備份。');
+    } catch (error) {
+        console.error(error);
+        setStatus(`儲存失敗: ${error.message}`);
+    }
+}
+
 
 async function initializeRendererAssets() {
     const canvas = document.getElementById('batchCanvas');
@@ -1304,11 +1712,18 @@ async function handleBatchExport() {
     const dateText = new Date().toISOString().slice(0, 10);
     let syncedCount = 0;
     let syncFailedCount = 0;
+    let skippedCount = 0;
 
-    setStatus(`開始輸出 ${validRows.length} 筆資料...`);
+    showExportOverlay(validRows.length);
+    appendExportLog(`開始輸出 ${validRows.length} 筆資料...`, 'info');
 
     try {
         for (let index = 0; index < validRows.length; index += 1) {
+            if (batchState.exportCancel) {
+                appendExportLog('使用者已取消輸出', 'info');
+                break;
+            }
+
             const row = validRows[index];
             const nextState = cloneJson(batchState.template.state);
 
@@ -1335,14 +1750,30 @@ async function handleBatchExport() {
                 const syncResult = await pushRowToPhilipsDevice(row, philipsJpegDataUrl);
                 if (!syncResult.skipped) {
                     syncedCount += 1;
+                    row._exportResult = 'success';
+                    row._exportError = null;
+                    appendExportLog(`第 ${index + 1} 列 (${preferredName}): 已輸出`, 'success');
+                } else {
+                    skippedCount += 1;
+                    row._exportResult = 'skipped';
+                    row._exportError = syncResult.message || '已跳過';
+                    appendExportLog(`第 ${index + 1} 列 (${preferredName}): ${syncResult.message}`, 'info');
                 }
             } catch (syncError) {
                 syncFailedCount += 1;
+                row._exportResult = 'failed';
+                row._exportError = syncError.message || '桌牌更新失敗';
                 console.warn(`第 ${index + 1} 列桌牌更新失敗:`, syncError);
+                appendExportLog(`第 ${index + 1} 列 (${preferredName}): ❌ 桌牌更新失敗 - ${syncError.message}`, 'error');
             }
 
-            setStatus(`輸出中... (${index + 1}/${validRows.length})`);
+            // Update progress bar
+            const progress = ((index + 1) / validRows.length * 100).toFixed(1);
+            document.getElementById('batchExportProgressFill').style.width = `${progress}%`;
+            document.getElementById('batchExportProgressLabel').textContent = `${index + 1} / ${validRows.length}`;
         }
+
+        hideExportOverlay();
 
         const zipBlob = await zip.generateAsync({
             type: 'blob',
@@ -1351,9 +1782,22 @@ async function handleBatchExport() {
         });
 
         downloadTextFile(`nameplates_${dateText}.zip`, zipBlob, 'application/zip');
-        setStatus(`批量輸出完成，共 ${validRows.length} 筆；桌牌更新成功 ${syncedCount} 筆，失敗 ${syncFailedCount} 筆。`);
+
+        const totalProcessed = syncedCount + syncFailedCount + skippedCount;
+        let summary = `批量輸出完成，共 ${totalProcessed} 筆`;
+        const details = [];
+        if (syncedCount > 0) details.push(`成功 ${syncedCount} 筆`);
+        if (skippedCount > 0) details.push(`跳過 ${skippedCount} 筆`);
+        if (syncFailedCount > 0) details.push(`失敗 ${syncFailedCount} 筆`);
+        if (details.length) summary += `（${details.join('，')}）`;
+        setStatus(summary);
+
+        // Re-render table to show audit pills
+        renderTable();
     } catch (error) {
+        hideExportOverlay();
         console.error(error);
         setStatus(`批量輸出失敗: ${error.message}`);
+        renderTable();
     }
 }
