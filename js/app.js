@@ -1395,6 +1395,12 @@ function attachEventListeners() {
             btn.classList.add('active');
             document.getElementById('customRatioW').value = w;
             document.getElementById('customRatioH').value = h;
+
+            // 非會議桌牌建議比例時提示
+            const isMeetingPreset = w === 5 && h === 3 && canvasWidth === 800 && canvasHeight === 480;
+            if (!isMeetingPreset) {
+                showToast('此比例非 Philips 會議桌牌建議尺寸 (800×480)，可能無法正確顯示。', 'warning', 4000);
+            }
         });
     });
 
@@ -1531,7 +1537,12 @@ async function handleGlobalImagePaste(event) {
 }
 
 function initSectionCollapse() {
-    const sections = document.querySelectorAll('.edit-panel > .edit-section');
+    // 選取各分頁內的可收合區塊（排除物件管理區，該區固定展開），
+    // 以及設備控制面板內巢狀的直接上傳區塊
+    const sections = document.querySelectorAll(
+        '.edit-panel .tab-content > .edit-section:not(.object-manager-section),' +
+        '#deviceControlsPanel > .edit-section.direct-upload-section'
+    );
 
     sections.forEach(section => {
         const heading = section.querySelector(':scope > h2, :scope > h3');
@@ -1548,8 +1559,9 @@ function initSectionCollapse() {
             heading.setAttribute('aria-expanded', (!collapsed).toString());
         };
 
-        const isBatchSection = section.classList.contains('batch-section');
-        setCollapsed(isBatchSection);
+        const startCollapsed = section.classList.contains('batch-section')
+            || section.classList.contains('direct-upload-section');
+        setCollapsed(startCollapsed);
 
         const toggle = () => {
             setCollapsed(!section.classList.contains('is-collapsed'));
@@ -2112,6 +2124,7 @@ async function handleSaveDevice() {
 
     philipsControlState.selectedDeviceId = draft.id;
     rebuildAvailableDevices();
+    renderDiscoveredDeviceList();
     renderDeviceOptions();
     syncPhilipsPanel();
     saveSettings();
@@ -2141,6 +2154,7 @@ async function handleDeleteDevice() {
     const beforeCount = philipsControlState.manualDevices.length;
     philipsControlState.manualDevices = philipsControlState.manualDevices.filter(device => device.id !== selectedDevice.id);
     rebuildAvailableDevices();
+    renderDiscoveredDeviceList();
     philipsControlState.selectedDeviceId = philipsControlState.devices.some(device => device.id === selectedDevice.id)
         ? selectedDevice.id
         : '';
@@ -2237,6 +2251,7 @@ function syncPhilipsControlsFromState() {
     document.getElementById('apiResultOutput').textContent = philipsControlState.lastApiResult || '尚未呼叫 API';
     handleNetworkModeChange();
     syncPhilipsPanel();
+    renderDiscoveredDeviceList();
 
     const pushBtn = document.getElementById('pushImageBothBtn');
     if (pushBtn) {
@@ -2263,7 +2278,7 @@ function syncPhilipsPanel() {
     } else {
         const deviceBaseUrl = buildDeviceBaseUrl(selectedDevice);
         const sourceLabel = selectedDevice.source === 'manual' ? '手動' : '自動掃描';
-        summaryText.textContent = `目前選擇 ${selectedDevice.label || selectedDevice.device_id || selectedDevice.host}（${sourceLabel}），控制指令會先送到網站後端，再由後端轉發到 ${deviceBaseUrl}${PHILIPS_API_PREFIX}`;
+        summaryText.textContent = `目前選擇 ${selectedDevice.label || selectedDevice.device_id || selectedDevice.host}（${sourceLabel}），控制指令會由後端轉發到 ${deviceBaseUrl}${PHILIPS_API_PREFIX}`;
         footerDeviceName.textContent = selectedDevice.label || selectedDevice.device_id || selectedDevice.host;
         footerDeviceEndpoint.textContent = deviceBaseUrl;
     }
@@ -2278,18 +2293,39 @@ function renderDiscoveredDeviceList() {
         return;
     }
 
+    // 合併掃描發現與使用者已儲存的桌牌，以 ID 去重
     const discoveredDevices = Array.isArray(philipsControlState.discoveredDevices)
         ? philipsControlState.discoveredDevices
         : [];
+    const manualDevices = Array.isArray(philipsControlState.manualDevices)
+        ? philipsControlState.manualDevices
+        : [];
 
-    countNode.textContent = `${discoveredDevices.length} 台`;
+    const mergedMap = new Map();
+    discoveredDevices.forEach(device => {
+        mergedMap.set(device.id, { ...device, _listSource: 'discovered' });
+    });
+    manualDevices.forEach(device => {
+        if (mergedMap.has(device.id)) {
+            // 保留掃描記錄，但補上已儲存的名稱
+            const existing = mergedMap.get(device.id);
+            existing.label = device.label || existing.label;
+            existing._listSource = 'both';
+        } else {
+            mergedMap.set(device.id, { ...device, _listSource: 'manual' });
+        }
+    });
 
-    if (!discoveredDevices.length) {
+    const allDevices = Array.from(mergedMap.values());
+
+    countNode.textContent = `${allDevices.length} 台`;
+
+    if (!allDevices.length) {
         listNode.innerHTML = '<div class="discovered-device-empty">目前尚未掃描到桌牌</div>';
         return;
     }
 
-    const items = discoveredDevices.map(device => {
+    const items = allDevices.map(device => {
         const heartbeatAt = discoveredHeartbeatSyncCache.get(device.id) || 0;
         const isConnected = heartbeatAt > 0;
         const heartbeatLabel = isConnected ? '已連線' : '未連線';
@@ -2298,13 +2334,22 @@ function renderDiscoveredDeviceList() {
             : '';
         const endpoint = buildDeviceBaseUrl(device);
 
+        let sourceBadge = '';
+        if (device._listSource === 'manual') {
+            sourceBadge = '<span class="discovered-device-source discovered-device-source--saved">已儲存</span>';
+        } else if (device._listSource === 'discovered') {
+            sourceBadge = '<span class="discovered-device-source discovered-device-source--scanned">掃描發現</span>';
+        } else {
+            sourceBadge = '<span class="discovered-device-source discovered-device-source--both">已儲存</span>';
+        }
+
         return `
             <div class="discovered-device-card ${isConnected ? 'is-connected' : 'is-disconnected'}">
                 <div class="discovered-device-card-head">
                     <span class="discovered-device-dot" aria-hidden="true"></span>
                     <div>
                         <div class="discovered-device-name">${escapeHtml(device.label || device.device_id || device.host || '未命名桌牌')}</div>
-                        <div class="discovered-device-meta">${escapeHtml(endpoint || '-')}</div>
+                        <div class="discovered-device-meta">${escapeHtml(endpoint || '-')} ${sourceBadge}</div>
                     </div>
                     <div class="discovered-device-heartbeat ${isConnected ? 'is-connected' : 'is-disconnected'}">
                         ${escapeHtml(heartbeatLabel)}
@@ -4997,6 +5042,9 @@ function handleApplyCustomRatio(options = {}) {
 
     applyAspectRatio(w, h);
     document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+
+    // 自訂比例非 Philips 建議尺寸，提示使用者
+    showToast('此比例非 Philips 會議桌牌建議尺寸 (800×480)，可能無法正確顯示。', 'warning', 4000);
 }
 
 function handleApplyCustomCanvasSize(options = {}) {
@@ -5024,6 +5072,11 @@ function handleApplyCustomCanvasSize(options = {}) {
         canvasHeight: height
     });
     document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+
+    // 自訂尺寸非 Philips 建議尺寸 (800×480) 時提示
+    if (width !== 800 || height !== 480) {
+        showToast('此尺寸非 Philips 會議桌牌建議尺寸 (800×480)，可能無法正確顯示。', 'warning', 4000);
+    }
 }
 
 function cloneJsonCompatible(value) {

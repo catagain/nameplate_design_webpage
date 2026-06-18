@@ -51,14 +51,14 @@
                     <div class="form-group">
                         <label>常見比例</label>
                         <div class="ratio-presets">
-                            <button class="ratio-btn" data-w="10" data-h="3">10:3<span class="ratio-hint">標準名牌</span></button>
+                            <button class="ratio-btn active recommended" data-w="5" data-h="3" data-canvas-width="800" data-canvas-height="480">會議桌牌<span class="ratio-hint">800×480 <span class="rec-badge">建議</span></span></button>
+                            <button class="ratio-btn" data-w="10" data-h="3">10:3</button>
                             <button class="ratio-btn" data-w="2" data-h="1">2:1</button>
                             <button class="ratio-btn" data-w="16" data-h="9">16:9</button>
                             <button class="ratio-btn" data-w="16" data-h="10">16:10</button>
                             <button class="ratio-btn" data-w="4" data-h="3">4:3</button>
                             <button class="ratio-btn" data-w="3" data-h="2">3:2</button>
                             <button class="ratio-btn" data-w="1" data-h="1">1:1</button>
-                            <button class="ratio-btn active" data-w="5" data-h="3" data-canvas-width="800" data-canvas-height="480">會議桌牌<span class="ratio-hint">800×480</span></button>
                         </div>
                     </div>
 
@@ -136,6 +136,7 @@
                         </div>
                     </div>
                 </section>
+
             </div>
                 <div class="tab-content" data-tab="objects" hidden>
                     <section class="edit-section" hidden>
@@ -520,6 +521,8 @@
                 <section class="edit-section object-manager-section">
                     <h2>圖片內容管理</h2>
 
+                    <p class="batch-helper-text" style="margin-top: 8px; color: var(--text-muted);">💡 提示：拖曳預覽畫面的物件可直接調整位置。</p>
+                    
                     <div class="object-manager-create">
                         <button id="addObjectBtn" class="btn btn-primary add-object-btn" type="button">＋ 新增物件</button>
                         <!-- Hidden inputs kept for programmatic use -->
@@ -621,8 +624,6 @@
 
                     <div class="object-manager-divider" aria-hidden="true"></div>
 
-                     <p class="batch-helper-text">預設物件會先維持目前版面，可隨時隱藏/顯示；新增物件可直接在畫布上拖曳調整位置。</p>
-                     <p class="batch-helper-text" style="margin-top: 8px; color: var(--text-muted);">💡 提示：點擊物件可修改詳細設定，拖曳物件可調整圖層上下順序。</p>
                 </div>
                 <div class="tab-content" data-tab="device" hidden>
                     <section class="edit-section batch-section" hidden>
@@ -923,33 +924,39 @@
                         </div>
 
                         <pre id="apiResultOutput" class="api-result-output">尚未呼叫 API</pre>
+
+                        <!-- 直接上傳圖片（可收合，預設收合，需選擇桌牌後才出現） -->
+                        <section class="edit-section direct-upload-section is-collapsed" style="margin-top: 24px;">
+                            <h2>上傳現成圖片</h2>
+                            <div class="upload-direct-block">
+                                <div class="form-group">
+                                    <label for="directImageUploadInput">上傳圖片並更新桌牌</label>
+                                    <input
+                                        type="file"
+                                        id="directImageUploadInput"
+                                        accept="image/*"
+                                        class="file-input"
+                                    >
+                                    <div class="image-preview" id="directImagePreview">
+                                        <span>未選擇圖片</span>
+                                    </div>
+                                    <small>圖片會自動轉成 800×480 的 baseline JPG，並同步更新到 A/B 兩面。</small>
+                                </div>
+                                <button id="uploadImageToBothBtn" class="btn btn-success" type="button">
+                                    上傳圖片並同步更新雙面
+                                </button>
+                            </div>
+                        </section>
+
+                        <button id="pushImageBothBtn" class="btn btn-success" type="button" style="margin-top: 24px;">
+                            更新桌牌畫面
+                        </button>
                     </div>
                 </section>
             </div>
 
             <div class="tab-content" data-tab="upload" hidden>
                 <section class="action-section">
-                    <div class="upload-direct-block">
-                        <div class="form-group">
-                            <label for="directImageUploadInput">直接上傳圖片更新桌牌雙面</label>
-                            <input
-                                type="file"
-                                id="directImageUploadInput"
-                                accept="image/*"
-                                class="file-input"
-                            >
-                            <div class="image-preview" id="directImagePreview">
-                                <span>未選擇圖片</span>
-                            </div>
-                            <small>圖片會自動轉成 800×480 的 baseline JPG，並同步更新到 A/B 兩面。</small>
-                        </div>
-                        <button id="uploadImageToBothBtn" class="btn btn-success" type="button">
-                            上傳圖片並同步更新雙面
-                        </button>
-                    </div>
-                     <button id="pushImageBothBtn" class="btn btn-success" type="button">
-                         更新桌牌畫面
-                     </button>
                     <button id="openBatchPageBtn" class="btn btn-success" type="button">
                         批量生產
                     </button>
