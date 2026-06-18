@@ -1,6 +1,7 @@
 /* 批量生產頁：依目前版型動態產生欄位並輸出 ZIP */
 
 const STORAGE_KEY = 'nameplateSettings';
+const SAVED_DATASETS_KEY = 'batch_saved_datasets';
 const DEFAULT_OBJECT_IDS = ['default-name', 'default-company', 'default-position', 'default-qrcode'];
 const PHILIPS_API_PREFIX = '/api/tableside/v1';
 const PHILIPS_PROXY_API = '/api/philips/proxy';
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         goToStep(1);
         renderSchemaSummary();
         renderMappingContent();
+        renderSavedDatasetsList();
         renderTable();
         setStatus('已載入版型。');
     } catch (error) {
@@ -1018,6 +1020,7 @@ function renderTable() {
         body.innerHTML = `<tr><td colspan="${totalCols}" class="batch-empty-state">${msg}</td></tr>`;
         updateSummary();
         if (step1Preview) renderStep1Preview();
+        updateActionButtons();
         return;
     }
 
@@ -1068,6 +1071,7 @@ function renderTable() {
     renderStep1Preview();
     renderExportStatusTable();
     updatePageCounter();
+    updateActionButtons();
 }
 
 function renderStep1Preview() {
@@ -1183,10 +1187,24 @@ function attachEventListeners() {
     });
 
     document.getElementById('batchTemplateBtn').addEventListener('click', downloadCurrentTemplateCsv);
-    document.getElementById('batchDownloadCsvBtn').addEventListener('click', downloadCurrentTableCsv);
+    document.getElementById('batchDownloadCsvBtn').addEventListener('click', () => {
+        if (!batchState.rows.length) {
+            setStatus('請先建立資料表，再進行此操作');
+            return;
+        }
+        downloadCurrentTableCsv();
+    });
     document.getElementById('batchCsvInput').addEventListener('change', handleSpreadsheetUpload);
-    document.getElementById('batchSaveLocalBtn').addEventListener('click', downloadCurrentTableCsv);
-    document.getElementById('batchSaveServerBtn').addEventListener('click', saveBatchToServer);
+    document.getElementById('batchSaveLocalBtn').addEventListener('click', () => {
+        if (!batchState.rows.length) {
+            setStatus('請先建立資料表，再進行此操作');
+            return;
+        }
+        const name = prompt('請輸入資料集名稱', `批次資料 ${new Date().toLocaleString('zh-TW')}`);
+        if (name === null) return; // User cancelled
+        saveDatasetToLocal(name);
+    });
+
     document.getElementById('batchPrevRow').addEventListener('click', () => paginatePreview(-1));
     document.getElementById('batchNextRow').addEventListener('click', () => paginatePreview(1));
     document.getElementById('batchPreviewHead').addEventListener('click', (event) => {
@@ -1298,6 +1316,7 @@ function attachEventListeners() {
     });
     document.querySelectorAll('[data-action="prev-step"]').forEach(btn => {
         btn.addEventListener('click', () => {
+            if (btn.classList.contains('is-disabled')) return;
             const content = btn.closest('.batch-step-content');
             const currentStep = parseInt(content.dataset.step, 10);
             goToStep(currentStep - 1);
@@ -1367,6 +1386,26 @@ function attachEventListeners() {
     document.getElementById('batchMappingGuide').addEventListener('click', (e) => {
         if (e.target === e.currentTarget) {
             e.currentTarget.style.display = 'none';
+        }
+    });
+
+    // 已儲存資料集操作
+    // 已儲存資料集 — 下拉選單切換
+    document.getElementById('batchSavedSelect').addEventListener('change', onSavedDatasetSelectChange);
+
+    // 已儲存資料集 — 載入按鈕
+    document.getElementById('batchSavedLoadBtn').addEventListener('click', () => {
+        const select = document.getElementById('batchSavedSelect');
+        if (!select || !select.value) return;
+        loadDatasetFromLocal(select.value);
+    });
+
+    // 已儲存資料集 — 刪除按鈕
+    document.getElementById('batchSavedDeleteBtn').addEventListener('click', () => {
+        const select = document.getElementById('batchSavedSelect');
+        if (!select || !select.value) return;
+        if (confirm('確定要刪除此筆已儲存的資料嗎？')) {
+            deleteDatasetFromLocal(select.value);
         }
     });
 }
@@ -1775,6 +1814,178 @@ async function saveBatchToServer() {
 }
 
 
+/* ========== 本機儲存資料集管理 ========== */
+
+const SAVED_DATASETS_PREFIX = 'batch_ds_';
+
+function getSavedDatasetsMeta() {
+    try {
+        const raw = localStorage.getItem(SAVED_DATASETS_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeSavedDatasetsMeta(list) {
+    localStorage.setItem(SAVED_DATASETS_KEY, JSON.stringify(list));
+}
+
+function generateDatasetId() {
+    return 'ds_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function saveDatasetToLocal(name) {
+    if (!batchState.rows.length) {
+        setStatus('沒有資料可儲存，請先匯入資料或新增資料列。');
+        return null;
+    }
+
+    const datasetName = (name || '').trim() || `批次資料 ${new Date().toLocaleString('zh-TW')}`;
+    const id = generateDatasetId();
+    const now = new Date().toISOString();
+    const meta = {
+        id,
+        name: datasetName,
+        createdAt: now,
+        updatedAt: now,
+        rowCount: batchState.rows.length,
+        schemaKeys: batchState.schema.all.map((col) => col.key)
+    };
+
+    // Save full data under a separate key to keep meta lightweight
+    try {
+        localStorage.setItem(SAVED_DATASETS_PREFIX + id, JSON.stringify({
+            rows: batchState.rows,
+            schema: batchState.schema
+        }));
+    } catch (error) {
+        setStatus(`儲存失敗：本地儲存空間不足 (${error.message})`);
+        return null;
+    }
+
+    const list = getSavedDatasetsMeta();
+    list.unshift(meta);
+    // Cap at 50 datasets
+    while (list.length > 50) {
+        const removed = list.pop();
+        try { localStorage.removeItem(SAVED_DATASETS_PREFIX + removed.id); } catch {}
+    }
+    writeSavedDatasetsMeta(list);
+
+    renderSavedDatasetsList();
+    setStatus(`已儲存「${datasetName}」（${batchState.rows.length} 列）至本機。`);
+    return id;
+}
+
+function loadDatasetFromLocal(id) {
+    const list = getSavedDatasetsMeta();
+    const meta = list.find((item) => item.id === id);
+    if (!meta) {
+        setStatus('找不到指定的已儲存資料。');
+        return false;
+    }
+
+    try {
+        const raw = localStorage.getItem(SAVED_DATASETS_PREFIX + id);
+        if (!raw) {
+            setStatus('已儲存的資料內容不存在，可能已被清除。');
+            return false;
+        }
+        const data = JSON.parse(raw);
+        if (!Array.isArray(data.rows) || !data.rows.length) {
+            setStatus('已儲存的資料內容無效。');
+            return false;
+        }
+
+        // Validate schema compatibility
+        if (data.schema && Array.isArray(data.schema.all)) {
+            batchState.schema = data.schema;
+        }
+        batchState.rows = data.rows.map((row) => ({ ...row }));
+        renderTable();
+        setStatus(`已載入「${meta.name}」（${batchState.rows.length} 列）。請在下方預覽確認，或前往下一步。`);
+        return true;
+    } catch (error) {
+        setStatus(`載入失敗：${error.message}`);
+        return false;
+    }
+}
+
+function deleteDatasetFromLocal(id) {
+    const list = getSavedDatasetsMeta();
+    const index = list.findIndex((item) => item.id === id);
+    if (index === -1) return;
+
+    list.splice(index, 1);
+    writeSavedDatasetsMeta(list);
+
+    try { localStorage.removeItem(SAVED_DATASETS_PREFIX + id); } catch {}
+
+    renderSavedDatasetsList();
+    setStatus('已刪除儲存的資料。');
+}
+
+function renderSavedDatasetsList() {
+    const select = document.getElementById('batchSavedSelect');
+    const loadBtn = document.getElementById('batchSavedLoadBtn');
+    const deleteBtn = document.getElementById('batchSavedDeleteBtn');
+    if (!select) return;
+
+    const list = getSavedDatasetsMeta();
+    const section = document.getElementById('batchSavedDatasetsSection');
+
+    if (!list.length) {
+        select.innerHTML = '<option value="">— 無已儲存的資料 —</option>';
+        select.disabled = true;
+        if (loadBtn) loadBtn.disabled = true;
+        if (deleteBtn) deleteBtn.disabled = true;
+        if (section) section.style.display = 'none';
+        return;
+    }
+
+    select.disabled = false;
+    select.innerHTML = '<option value="">— 請選擇資料集 —</option>'
+        + list.map((item) => {
+            const dateStr = new Date(item.createdAt).toLocaleString('zh-TW', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+            return `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}（${item.rowCount} 列，${escapeHtml(dateStr)}）</option>`;
+        }).join('');
+
+    // Buttons start disabled
+    if (loadBtn) loadBtn.disabled = true;
+    if (deleteBtn) deleteBtn.disabled = true;
+
+    if (section) section.style.display = '';
+}
+
+function onSavedDatasetSelectChange() {
+    const select = document.getElementById('batchSavedSelect');
+    const loadBtn = document.getElementById('batchSavedLoadBtn');
+    const deleteBtn = document.getElementById('batchSavedDeleteBtn');
+    if (!select) return;
+    const hasSelection = !!select.value;
+    if (loadBtn) loadBtn.disabled = !hasSelection;
+    if (deleteBtn) deleteBtn.disabled = !hasSelection;
+}
+
+function updateActionButtons() {
+    const hasData = batchState.rows.length > 0;
+    ['batchDownloadCsvBtn', 'batchSaveLocalBtn', 'batchExportBtn'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (hasData) {
+            btn.classList.remove('is-disabled');
+        } else {
+            btn.classList.add('is-disabled');
+        }
+    });
+}
+
+
 async function initializeRendererAssets() {
     const canvas = document.getElementById('batchCanvas');
     const ratio = batchState.template.aspectRatio || {};
@@ -1799,7 +2010,7 @@ async function initializeRendererAssets() {
 
 async function handleBatchExport() {
     if (!batchState.rows.length) {
-        setStatus('請先建立資料列。');
+        setStatus('請先建立資料表，再進行此操作');
         return;
     }
 

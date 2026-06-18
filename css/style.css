@@ -732,7 +732,8 @@ input[type="checkbox"] {
     gap: 8px;
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn.is-disabled {
     background-color: var(--secondary-color) !important;
     color: rgba(255, 255, 255, 0.6) !important;
     cursor: not-allowed !important;
@@ -1326,6 +1327,73 @@ input[type="checkbox"] {
 
 .batch-preview-table tr.is-valid {
     background: rgba(16, 185, 129, 0.05);
+}
+
+/* ========== 資料來源匯入區塊（上傳 + 已儲存下拉） ========== */
+.batch-import-group {
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 16px;
+    background: var(--bg-primary);
+    margin-bottom: 16px;
+}
+
+.batch-import-divider {
+    border: none;
+    border-top: 1px solid var(--border-light);
+    margin: 12px 0;
+}
+
+.batch-saved-dropdown-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+}
+
+.batch-saved-dropdown-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.batch-saved-dropdown-hint {
+    font-size: 12px;
+    color: var(--secondary-color);
+}
+
+.batch-saved-dropdown-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.batch-saved-select {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.batch-saved-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+[data-theme="dark"] .batch-saved-select {
+    background: var(--bg-primary);
+}
+
+.batch-saved-dropdown-row .btn {
+    font-size: 13px;
+    padding: 7px 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .batch-empty-state {

@@ -53,27 +53,46 @@
                     資料來源
                     <button type="button" class="batch-help-btn" id="batchMappingGuideBtn" title="欄位對應說明">?</button>
                 </h2>
-                <div class="form-group">
-                    <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
-                    <input
-                        type="file"
-                        id="batchCsvInput"
-                        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                        class="file-input"
-                    >
-                    <p class="batch-helper-text">檔案標題列需使用目前版型對應的欄位 key。欄位可多可少；若填寫 deviceTarget（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
-                </div>
+                <div class="batch-import-group">
+                    <div class="form-group">
+                        <label for="batchCsvInput">上傳 CSV / XLSX / XLS</label>
+                        <input
+                            type="file"
+                            id="batchCsvInput"
+                            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                            class="file-input"
+                        >
+                        <p class="batch-helper-text">檔案標題列需使用目前版型對應的欄位 key。欄位可多可少；若填寫 deviceTarget（桌牌名稱或 IP），輸出 ZIP 會自動依桌牌分資料夾。</p>
+                    </div>
 
-                <datalist id="deviceTargetSuggestions"></datalist>
+                    <datalist id="deviceTargetSuggestions"></datalist>
+
+                    <div class="batch-import-divider"></div>
+
+                    <div id="batchSavedDatasetsSection" style="display:none;">
+                        <div class="batch-saved-dropdown-header">
+                            <span class="batch-saved-dropdown-label">已儲存的資料</span>
+                            <span class="batch-saved-dropdown-hint">直接選取先前儲存在本機的資料集載入</span>
+                        </div>
+                        <div class="batch-saved-dropdown-row">
+                            <select id="batchSavedSelect" class="batch-saved-select">
+                                <option value="">— 無已儲存的資料 —</option>
+                            </select>
+                            <button type="button" class="btn btn-primary" id="batchSavedLoadBtn" disabled>載入</button>
+                            <button type="button" class="btn btn-secondary" id="batchSavedDeleteBtn" disabled>刪除</button>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="batchSchemaSummary" class="batch-schema-list"></div>
 
                     <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
+
                 <div id="batchStep1Preview" class="batch-preview-area"></div>
             </section>
 
             <div class="batch-step-footer">
-                <button class="btn btn-secondary" data-action="prev-step">上一步</button>
+                <button class="btn btn-secondary is-disabled" data-action="prev-step" id="batchStep1PrevBtn">上一步</button>
                 <button class="btn btn-primary" data-action="next-step">下一步</button>
             </div>
         </div>
@@ -91,8 +110,7 @@
                     <button id="batchAddRowBtn" class="btn btn-secondary" type="button">新增一列</button>
                     <button id="batchClearBtn" class="btn btn-secondary" type="button">清除資料</button>
                     <button id="batchDownloadCsvBtn" class="btn btn-secondary" type="button">下載表格 CSV</button>
-                    <button id="batchSaveLocalBtn" class="btn btn-primary" type="button">儲存至本機</button>
-                    <button id="batchSaveServerBtn" class="btn btn-primary" type="button">儲存至伺服器</button>
+                    <button id="batchSaveLocalBtn" class="btn btn-primary" type="button">儲存目前資料</button>
                 </div>
 
                 <div class="batch-preview-wrapper">
@@ -137,7 +155,7 @@
 
             <div class="batch-step-footer">
                 <button class="btn btn-secondary" data-action="prev-step">上一步</button>
-                <button class="btn btn-success" data-action="export">輸出</button>
+                <button class="btn btn-success" data-action="export" id="batchExportBtn">輸出</button>
             </div>
         </div>
     </div>
