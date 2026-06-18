@@ -1127,6 +1127,38 @@ function initSectionHelpButtons() {
     }
 }
 
+// ========== 預覽面板固定位置 ==========
+// 讓預覽面板保持在畫面初始位置，不隨滾動立即上移，
+// 直到下方欄位（頁尾）碰觸到才自然被推上去。
+function initPreviewStickyPosition() {
+    const previewPanel = document.querySelector('.preview-panel');
+    if (!previewPanel) return;
+
+    function updateStickyTop() {
+        // 清除 inline top，回到自然流位置
+        previewPanel.style.removeProperty('top');
+        // 強制 reflow 確保 getBoundingClientRect() 是正確的自然位置
+        void previewPanel.offsetHeight;
+        const rect = previewPanel.getBoundingClientRect();
+        // 紀錄初始 top 位置，至少保留 10px 不貼邊
+        const topOffset = Math.max(10, rect.top);
+        previewPanel.style.top = topOffset + 'px';
+    }
+
+    // DOMContentLoaded 時先設一次
+    updateStickyTop();
+
+    // 等所有資源（圖片、字型）載入完成後再修正一次
+    window.addEventListener('load', () => {
+        requestAnimationFrame(updateStickyTop);
+    });
+
+    // 視窗縮放時重新計算
+    window.addEventListener('resize', () => {
+        requestAnimationFrame(updateStickyTop);
+    });
+}
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
     initRenderer();
@@ -1139,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
     initSectionHelpButtons();
     initAddObjectModal();
+    initPreviewStickyPosition();
     await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
