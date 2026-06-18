@@ -997,6 +997,17 @@
                             width="800" 
                             height="480"
                         ></canvas>
+                        <!-- 首次使用引導提示 -->
+                        <div id="onboardingTooltip" class="onboarding-tooltip" style="display: none;">
+                            <button type="button" class="onboarding-close" id="onboardingCloseBtn" aria-label="關閉提示">✕</button>
+                            <div class="onboarding-body">
+                                <div class="onboarding-icon">🖱</div>
+                                <p class="onboarding-title">快速上手</p>
+                                <p class="onboarding-text"><strong>拖曳</strong>姓名或任一物件直接調整位置</p>
+                                <p class="onboarding-text"><strong>點擊</strong>物件可快速編輯內容</p>
+                            </div>
+                            <div class="onboarding-arrow-down"></div>
+                        </div>
                     </div>
                     <div class="preview-info">
                         <p id="previewSizeInfo">預覽尺寸: 800×480 px</p>

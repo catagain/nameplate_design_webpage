@@ -1081,6 +1081,12 @@ function initTabNavigation() {
             const nextIdx = dir === 'next' ? currentIdx + 1 : currentIdx - 1;
             if (nextIdx >= 0 && nextIdx < tabs.length) {
                 switchToTab(tabs[nextIdx]);
+                // 等新分頁渲染完再平滑滾回頂端，避免直接跳到下半部
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+                });
             }
         });
     });
@@ -1165,6 +1171,102 @@ function initSectionHelpButtons() {
     }
 }
 
+// ========== 首次使用引導提示 ==========
+/**
+ * 在使用者首次開啟頁面時，於預覽畫面的姓名物件上方顯示一個引導對話框，
+ * 提示使用者可以拖曳物件以及點擊編輯內容。
+ * 對話框會在使用者與 Canvas 互動或點擊關閉後消失，並記錄到 localStorage 不再顯示。
+ */
+function initOnboardingTooltip() {
+    const tooltip = document.getElementById('onboardingTooltip');
+    const closeBtn = document.getElementById('onboardingCloseBtn');
+    const canvas = document.getElementById('nameplate');
+    if (!tooltip || !closeBtn || !canvas) {
+        return;
+    }
+
+    const dismissed = localStorage.getItem('nameplate_onboarding_dismissed');
+    if (dismissed === 'true') {
+        return;
+    }
+
+    function positionTooltip() {
+        const container = tooltip.offsetParent || document.querySelector('.preview-container');
+        if (!container || !window.renderer) {
+            return;
+        }
+
+        const containerRect = container.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const scale = canvasRect.width / canvas.width;
+
+        // 預設：Canvas 中心偏右上方（約 65% 寬、30% 高）
+        let canvasAnchorX = canvas.width * 0.65;
+        let canvasAnchorY = canvas.height * 0.30;
+
+        // 從 Renderer 取得姓名文字右上角的準確位置
+        try {
+            const objects = window.renderer.getOrderedRenderableObjects(window.nameplateState);
+            const nameObj = objects.find(o => o.id === 'default-name');
+            if (nameObj && nameObj.visible) {
+                const metrics = window.renderer.getObjectMetrics(nameObj, window.nameplateState);
+                if (metrics && metrics.width > 0) {
+                    canvasAnchorX = metrics.x + metrics.width / 2;  // 姓名右緣
+                    canvasAnchorY = metrics.y - metrics.height / 2; // 姓名上緣
+                }
+            }
+        } catch (e) {
+            // 使用預設值
+        }
+
+        // 將 Canvas 座標轉為容器相對座標（錨點 = 姓名右上角）
+        const anchorX = (canvasRect.left - containerRect.left) + canvasAnchorX * scale;
+        const anchorY = (canvasRect.top - containerRect.top) + canvasAnchorY * scale;
+
+        // 對話框左下角對齊姓名右上角，對話框往右上方延伸
+        const tooltipWidth = 240;
+        const estimatedHeight = 140;
+        const gap = 4;
+        const leftPos = Math.max(8, Math.min(anchorX + gap, containerRect.width - tooltipWidth - 8));
+        const topPos = Math.max(8, anchorY - estimatedHeight - gap);
+        tooltip.style.left = `${leftPos}px`;
+        tooltip.style.top = `${topPos}px`;
+
+        // 箭頭位於對話框左下角，指向姓名右上角
+        const arrow = tooltip.querySelector('.onboarding-arrow-down');
+        if (arrow) {
+            arrow.style.left = '12px';
+            arrow.style.marginLeft = '0';
+        }
+    }
+
+    function dismiss() {
+        tooltip.style.display = 'none';
+        localStorage.setItem('nameplate_onboarding_dismissed', 'true');
+        canvas.removeEventListener('mousedown', dismiss);
+        canvas.removeEventListener('touchstart', dismiss);
+        window.removeEventListener('resize', positionTooltip);
+    }
+
+    // 等待渲染完成後再顯示
+    setTimeout(() => {
+        positionTooltip();
+        tooltip.style.display = 'block';
+    }, 1200);
+
+    closeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        dismiss();
+    });
+
+    // 點擊 Canvas 任一處即關閉提示（代表使用者已開始操作）
+    canvas.addEventListener('mousedown', dismiss, { once: true });
+    canvas.addEventListener('touchstart', dismiss, { once: true });
+
+    // 視窗縮放時重新定位
+    window.addEventListener('resize', positionTooltip);
+}
+
 // ========== 預覽面板固定位置 ==========
 // 讓預覽面板保持在畫面初始位置，不隨滾動立即上移，
 // 直到下方欄位（頁尾）碰觸到才自然被推上去。
@@ -1212,6 +1314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSectionHelpButtons();
     initAddObjectModal();
     initPreviewStickyPosition();
+    initOnboardingTooltip();
     await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
