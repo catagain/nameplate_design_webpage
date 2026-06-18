@@ -73,7 +73,8 @@
             </section>
 
             <div class="batch-step-footer">
-                <button class="btn btn-primary" data-action="next-step">開始編輯</button>
+                <button class="btn btn-secondary" data-action="prev-step">上一步</button>
+                <button class="btn btn-primary" data-action="next-step">下一步</button>
             </div>
         </div>
 
@@ -129,9 +130,6 @@
         <!-- 步驟 3：批量輸出 -->
         <div class="batch-step-content" data-step="3">
             <section class="edit-section">
-                <div class="batch-page-toolbar">
-                    <button id="batchExportBtn" class="btn btn-success" type="button">批量輸出</button>
-                </div>
                 <div id="batchExportTableContainer" class="batch-export-table-container">
                     <div class="batch-empty-state">尚無資料，請先匯入資料</div>
                 </div>
@@ -139,6 +137,7 @@
 
             <div class="batch-step-footer">
                 <button class="btn btn-secondary" data-action="prev-step">上一步</button>
+                <button class="btn btn-success" data-action="export">輸出</button>
             </div>
         </div>
     </div>

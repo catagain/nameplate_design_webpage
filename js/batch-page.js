@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderSchemaSummary();
         renderMappingContent();
         renderTable();
-        setStatus('已載入目前版型。可上傳 CSV/XLSX/XLS 檔案或前往「檢視與編輯」手動輸入資料。');
+        setStatus('已載入版型。');
     } catch (error) {
         console.error(error);
         setStatus(`初始化失敗: ${error.message}`);
@@ -788,24 +788,14 @@ function renderSchemaSummary() {
         return;
     }
 
-    const requiredHtml = batchState.schema.required
-        .map((item) => `<span class="batch-schema-chip required">${escapeHtml(item.key)}（${escapeHtml(item.label)}）</span>`)
+    const allHtml = batchState.schema.all
+        .map((item) => `<span class="batch-schema-chip">${escapeHtml(item.key)}（${escapeHtml(item.label)}）</span>`)
         .join('');
-
-    const optionalHtml = batchState.schema.optional.length
-        ? batchState.schema.optional
-            .map((item) => `<span class="batch-schema-chip optional">${escapeHtml(item.key)}（${escapeHtml(item.label)}）</span>`)
-            .join('')
-        : '<span class="batch-empty-state">目前沒有可選欄位</span>';
 
     container.innerHTML = `
         <div>
-            <h3>必填欄位</h3>
-            <div class="batch-schema-row">${requiredHtml || '<span class="batch-empty-state">無</span>'}</div>
-        </div>
-        <div>
-            <h3>可選欄位</h3>
-            <div class="batch-schema-row">${optionalHtml}</div>
+            <h3>所有欄位</h3>
+            <div class="batch-schema-row">${allHtml}</div>
         </div>
     `;
 }
@@ -1067,6 +1057,7 @@ function renderTable() {
                 <td class="batch-row-actions">
                     <button type="button" class="btn btn-secondary" data-action="preview" data-row-index="${originalIndex}">預覽</button>
                     <button type="button" class="btn btn-secondary" data-action="delete" data-row-index="${originalIndex}">刪除</button>
+                    <button type="button" class="btn btn-primary" data-action="philips-update" data-row-index="${originalIndex}" title="將此列資料更新至桌牌">更新桌牌</button>
                 </td>
             </tr>
         `;
@@ -1194,7 +1185,6 @@ function attachEventListeners() {
     document.getElementById('batchTemplateBtn').addEventListener('click', downloadCurrentTemplateCsv);
     document.getElementById('batchDownloadCsvBtn').addEventListener('click', downloadCurrentTableCsv);
     document.getElementById('batchCsvInput').addEventListener('change', handleSpreadsheetUpload);
-    document.getElementById('batchExportBtn').addEventListener('click', handleBatchExport);
     document.getElementById('batchSaveLocalBtn').addEventListener('click', downloadCurrentTableCsv);
     document.getElementById('batchSaveServerBtn').addEventListener('click', saveBatchToServer);
     document.getElementById('batchPrevRow').addEventListener('click', () => paginatePreview(-1));
@@ -1245,6 +1235,51 @@ function attachEventListeners() {
         if (btn.dataset.action === 'preview') {
             await applyRowPreview(batchState.rows[rowIndex]);
             setStatus(`已套用第 ${rowIndex + 1} 列預覽`);
+            return;
+        }
+
+        if (btn.dataset.action === 'philips-update') {
+            const row = batchState.rows[rowIndex];
+            if (!row.deviceTarget || !String(row.deviceTarget).trim()) {
+                setStatus('此列未填寫桌牌目標，無法更新。');
+                return;
+            }
+
+            if (!confirm(`確定要將第 ${rowIndex + 1} 列資料更新至桌牌「${row.deviceTarget}」嗎？`)) {
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '更新中...';
+                setStatus(`正在更新第 ${rowIndex + 1} 列表牌...`);
+
+                const nextState = cloneJson(batchState.template.state);
+                batchState.schema.required.forEach((column) => {
+                    applyTextColumnToState(nextState, column, row);
+                });
+                const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+                window.nameplateState = nextState;
+                await batchState.renderer.setQrCodeDataUrl(defaultQrDataUrl);
+                batchState.renderer.render(nextState);
+                await waitForNextFrame();
+
+                const philipsJpegDataUrl = exportPhilipsJpegDataUrlFromBatchCanvas();
+                const result = await pushRowToPhilipsDevice(row, philipsJpegDataUrl);
+
+                if (result.skipped) {
+                    setStatus(`第 ${rowIndex + 1} 列已跳過：${result.message}`);
+                } else {
+                    setStatus(`第 ${rowIndex + 1} 列已成功更新至桌牌。`);
+                }
+            } catch (error) {
+                setStatus(`第 ${rowIndex + 1} 列桌牌更新失敗：${error.message}`);
+                console.error('Philips update error:', error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '更新桌牌';
+            }
+            return;
         }
     });
 
@@ -1266,6 +1301,11 @@ function attachEventListeners() {
             const content = btn.closest('.batch-step-content');
             const currentStep = parseInt(content.dataset.step, 10);
             goToStep(currentStep - 1);
+        });
+    });
+    document.querySelectorAll('[data-action="export"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            handleBatchExport();
         });
     });
 
