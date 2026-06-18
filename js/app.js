@@ -1055,6 +1055,9 @@ function initTabs() {
             contents.forEach(content => {
                 content.hidden = content.dataset.tab !== targetTab;
             });
+
+            // 同步更新上一頁/下一頁按鈕狀態
+            updateTabNavButtons();
         });
     });
 }
@@ -1063,6 +1066,41 @@ function switchToTab(tabName) {
     const tab = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
     if (!tab) return;
     tab.click();
+}
+
+// ========== 各分頁內上一頁/下一頁按鈕 ==========
+function initTabNavigation() {
+    // 上一頁 / 下一頁按鈕
+    document.querySelectorAll('.tab-nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabs = ['canvas', 'objects', 'device', 'upload'];
+            const currentTab = document.querySelector('.tab-content:not([hidden])');
+            if (!currentTab) return;
+            const currentIdx = tabs.indexOf(currentTab.dataset.tab);
+            const dir = btn.dataset.nav;
+            const nextIdx = dir === 'next' ? currentIdx + 1 : currentIdx - 1;
+            if (nextIdx >= 0 && nextIdx < tabs.length) {
+                switchToTab(tabs[nextIdx]);
+            }
+        });
+    });
+
+    // 初始化按鈕狀態
+    updateTabNavButtons();
+}
+
+function updateTabNavButtons() {
+    const tabs = ['canvas', 'objects', 'device', 'upload'];
+    const currentTab = document.querySelector('.tab-content:not([hidden])');
+    if (!currentTab) return;
+    const currentIdx = tabs.indexOf(currentTab.dataset.tab);
+
+    document.querySelectorAll('.tab-nav-btn[data-nav="prev"]').forEach(btn => {
+        btn.disabled = currentIdx <= 0;
+    });
+    document.querySelectorAll('.tab-nav-btn[data-nav="next"]').forEach(btn => {
+        btn.disabled = currentIdx >= tabs.length - 1;
+    });
 }
 
 // ========== 功能提示按鈕（？） ==========
@@ -1140,7 +1178,8 @@ function initPreviewStickyPosition() {
         // 強制 reflow 確保 getBoundingClientRect() 是正確的自然位置
         void previewPanel.offsetHeight;
         const rect = previewPanel.getBoundingClientRect();
-        // 紀錄初始 top 位置，至少保留 10px 不貼邊
+        // 讓預覽面板保持在初始位置，不隨滾動上移，
+        // 直到下方欄位（頁尾）碰觸到才被自然推上去
         const topOffset = Math.max(10, rect.top);
         previewPanel.style.top = topOffset + 'px';
     }
@@ -1169,6 +1208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initDarkMode();
     initRecommendedOptions();
     initTabs();
+    initTabNavigation();
     initSectionHelpButtons();
     initAddObjectModal();
     initPreviewStickyPosition();
