@@ -34,6 +34,7 @@ const PHILIPS_JPEG_MAX_HEIGHT = 480;
 const DEVICE_DISCOVERY_REFRESH_MS = 30000;
 const DISCOVERED_HEARTBEAT_SYNC_RETRY_MS = 10 * 60 * 1000;
 const DUAL_DISPLAY_UPDATE_DELAY_MS = 350;
+const WARMUP_DISPLAY_DELAY_MS = 1500;
 const UNDO_HISTORY_LIMIT = 80;
 const DEFAULT_OBJECT_IDS = ['default-name', 'default-company', 'default-position', 'default-qrcode'];
 
@@ -80,14 +81,10 @@ const RECOMMENDED_TEXT_COLORS = [
 
 const COLOR_PALETTE_BASES = [
     { name: '純黑', h: 0, s: 0, l: 0 },
-    { name: '深藍', h: 215, s: 65, l: 22 },
-    { name: '深紅', h: 0, s: 70, l: 28 },
-    { name: '深紫', h: 270, s: 60, l: 30 },
-    { name: '深綠', h: 150, s: 55, l: 22 },
-    { name: '深青', h: 190, s: 60, l: 24 },
-    { name: '深橘', h: 25, s: 75, l: 35 },
-    { name: '深金', h: 45, s: 65, l: 30 },
-    { name: '深褐', h: 20, s: 55, l: 24 },
+    { name: '正紅', h: 0, s: 95, l: 48 },
+    { name: '正藍', h: 240, s: 95, l: 48 },
+    { name: '正綠', h: 120, s: 95, l: 42 },
+    { name: '正黃', h: 55, s: 95, l: 52 },
     { name: '純白', h: 0, s: 0, l: 100 },
 ];
 
@@ -113,14 +110,71 @@ function generateCirclePaletteHTML(currentValue) {
     }
     html += '</div><div class="palette-row">';
     for (const base of COLOR_PALETTE_BASES) {
-        const lightL = Math.min(92, base.l + 42);
-        const hex = hslToHex(base.h, base.s, lightL);
+        const darkL = Math.max(0, base.l - 10);
+        const hex = hslToHex(base.h, base.s, darkL);
         const isActive = hex.toUpperCase() === (currentValue || '').toUpperCase();
-        html += `<div class="rec-option${isActive ? ' is-active' : ''}" data-value="${hex}" title="${hex} ${base.name}（淡色）">`;
+        html += `<div class="rec-option${isActive ? ' is-active' : ''}" data-value="${hex}" title="${hex} ${base.name}（深色）">`;
         html += `<div class="rec-color" style="background-color:${hex}"></div></div>`;
     }
     html += '</div>';
     return html;
+}
+
+function isColorInPalette(hexColor) {
+    const normalized = (hexColor || '').toUpperCase();
+    for (const base of COLOR_PALETTE_BASES) {
+        const baseHex = hslToHex(base.h, base.s, base.l).toUpperCase();
+        if (baseHex === normalized) return true;
+        const darkHex = hslToHex(base.h, base.s, Math.max(0, base.l - 10)).toUpperCase();
+        if (darkHex === normalized) return true;
+    }
+    return false;
+}
+
+function showDitheringSuggestionDialog() {
+    if (philipsControlState.imgDither) return;
+    if (document.getElementById('ditherSuggestionOverlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ditherSuggestionOverlay';
+    overlay.className = 'dither-suggestion-overlay';
+
+    overlay.innerHTML = `
+        <div class="dither-suggestion-panel">
+            <div class="dither-suggestion-header">
+                <div class="dither-suggestion-header-icon">&#9670;</div>
+                <h3>抖動運算建議</h3>
+            </div>
+            <div class="dither-suggestion-body">
+                <p>使用預設以外的顏色、上傳圖片時，建議開啟抖動運算。</p>
+                <p class="dither-suggestion-hint">提示：抖動運算會在色塊中加入不同顏色的斑點，以模擬更多色彩。</p>
+            </div>
+            <div class="dither-suggestion-checkbox-row">
+                <label class="dither-suggestion-checkbox">
+                    <input type="checkbox" id="ditherSuggestionCheckbox">
+                    <span class="checkbox-label">開啟抖動運算</span>
+                </label>
+                <button id="ditherSuggestionConfirmBtn" class="btn btn-primary">確定</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    function applyDitherAndClose() {
+        const checked = document.getElementById('ditherSuggestionCheckbox').checked;
+        if (checked) {
+            philipsControlState.imgDither = true;
+            document.getElementById('imgDitherInput').checked = true;
+            saveSettings();
+        }
+        overlay.remove();
+    }
+
+    document.getElementById('ditherSuggestionConfirmBtn').addEventListener('click', applyDitherAndClose);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) applyDitherAndClose();
+    });
 }
 
 const RECOMMENDED_FONTS = [
@@ -699,6 +753,7 @@ function updateSelectedObjectColor(color) {
     renderObjectRecommendedOptions();
     triggerRender();
     saveSettings();
+    if (!isColorInPalette(normalizedColor)) showDitheringSuggestionDialog();
 }
 
 function updateSelectedObjectFontFamily(fontFamily) {
@@ -1763,7 +1818,7 @@ function createDefaultPhilipsControlState() {
         selectedDeviceId: '',
         imageHostUrl: '',
         displayCallbackUrl: '/image-post',
-         imgDither: true,
+         imgDither: false,
         serverAddr: '',
         serverPort: 3001,
         heartbeatUrl: '/heartbeat',
@@ -2801,13 +2856,31 @@ function exportPhilipsJpegDataUrl() {
     return fallback;
 }
 
+// 快取上一次產生的 JPEG data URL，確保雙面更新使用完全相同的圖片資料
+let _cachedJpegDataUrl = null;
+let _cachedJpegPublicUrl = null;
+
 async function uploadCurrentNameplateToWebhookServer() {
     if (window.location.protocol === 'file:') {
         throw new Error('請改由同一台後端 server 開啟此頁，才能上傳圖片並提供桌牌存取');
     }
 
     const imageData = exportPhilipsJpegDataUrl();
-    return uploadNameplateJpegToWebhookServer(imageData, window.nameplateState.name || 'nameplate');
+
+    // 若圖片內容未變，直接回傳上一次上傳的 URL，確保 A/B 兩面使用完全相同的 data URL
+    if (_cachedJpegDataUrl === imageData && _cachedJpegPublicUrl) {
+        philipsControlState.imageHostUrl = _cachedJpegPublicUrl;
+        document.getElementById('imageHostUrlInput').value = _cachedJpegPublicUrl;
+        saveSettings();
+        return _cachedJpegPublicUrl;
+    }
+
+    const publicUrl = await uploadNameplateJpegToWebhookServer(imageData, window.nameplateState.name || 'nameplate');
+
+    _cachedJpegDataUrl = imageData;
+    _cachedJpegPublicUrl = publicUrl;
+
+    return publicUrl;
 }
 
 async function uploadNameplateJpegToWebhookServer(imageData, displayName = 'nameplate') {
@@ -2904,6 +2977,20 @@ async function pushImageUrlToBothDisplays(imageTargetUrl) {
     };
     const sideErrors = [];
 
+    // 暖身：先送一次 A 面讓設備顯示 pipeline 進入穩定狀態（此幀顏色可能異常）
+    try {
+        await performPhilipsRequest(`${PHILIPS_API_PREFIX}/display/image/a`, {
+            method: 'PUT',
+            body: requestBody
+        });
+    } catch (error) {
+        // 暖身失敗不影響後續更新
+    }
+
+    // 等待設備完成暖身處理
+    await new Promise(resolve => setTimeout(resolve, WARMUP_DISPLAY_DELAY_MS));
+
+    // 正式更新 A 面（設備仍在暖機窗口內，顏色應正常）
     try {
         sideResults.targetA = await performPhilipsRequest(`${PHILIPS_API_PREFIX}/display/image/a`, {
             method: 'PUT',
@@ -2915,6 +3002,7 @@ async function pushImageUrlToBothDisplays(imageTargetUrl) {
 
     await waitForDualDisplayGap();
 
+    // 正式更新 B 面（設備仍在暖機窗口內，顏色應正常）
     try {
         sideResults.targetB = await performPhilipsRequest(`${PHILIPS_API_PREFIX}/display/image/b`, {
             method: 'PUT',
@@ -3799,6 +3887,7 @@ function handleBgColorChange(e) {
     document.getElementById('colorValue').textContent = color;
     triggerRender();
     saveSettings();
+    if (!isColorInPalette(color)) showDitheringSuggestionDialog();
 }
 
 function applyBackgroundImageFile(file) {
@@ -3832,6 +3921,7 @@ function applyBackgroundImageFile(file) {
     reader.readAsDataURL(file);
 
     showNotification('圖片已上傳', 'success');
+    showDitheringSuggestionDialog();
 }
 
 function handleImageUpload(e) {
@@ -3900,6 +3990,7 @@ function applyDirectUploadImageFile(file) {
         updateDirectImagePreview('');
     };
     reader.readAsDataURL(file);
+    showDitheringSuggestionDialog();
 }
 
 function handleDirectImageUploadPreview(e) {
@@ -3956,6 +4047,7 @@ function applyQrImageFile(file) {
         updateQrToggleButton();
         saveSettings();
         showNotification('已上傳 QRCode 圖片', 'success');
+        showDitheringSuggestionDialog();
     };
     reader.readAsDataURL(file);
 }
@@ -4161,6 +4253,7 @@ function handleTextColorChange(e) {
     renderSelectedObjectSettings();
     triggerRender();
     saveSettings();
+    if (!isColorInPalette(color)) showDitheringSuggestionDialog();
 }
 
 function handleTextShadowChange(e) {
@@ -4767,6 +4860,7 @@ async function addImageObjectFromFile(file) {
         triggerRender();
         saveSettings();
         showNotification('已新增小圖片物件', 'success');
+        showDitheringSuggestionDialog();
     } catch (error) {
         showNotification(`新增小圖片失敗: ${error.message}`, 'error');
     }
