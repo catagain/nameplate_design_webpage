@@ -1310,6 +1310,51 @@ input[type="checkbox"] {
     min-width: 180px;
 }
 
+/* Batch table image upload cell */
+.batch-image-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.batch-upload-label {
+    flex-shrink: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.batch-upload-label:hover {
+    background: var(--bg-hover, #e8ecf0);
+    border-color: var(--primary-color);
+}
+
+.batch-upload-btn {
+    font-size: 16px;
+    line-height: 1;
+    user-select: none;
+}
+
+.batch-file-input {
+    display: none;
+}
+
+.batch-thumb-preview {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+}
+
 .batch-preview-table thead th {
     position: sticky;
     top: 0;
@@ -2688,6 +2733,7 @@ input[type="checkbox"] {
     border: 2px solid var(--border-light);
     border-radius: 8px;
     background: var(--bg-secondary);
+    color: var(--text-color);
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -2699,8 +2745,44 @@ input[type="checkbox"] {
 }
 
 .add-object-option-icon {
-    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 76px;
+}
+
+.add-object-option-icon.is-text-icon {
+    font-size: 40px;
     line-height: 1;
+    width: 80px;
+}
+
+.add-object-option-icon.is-image-icon {
+    width: 80px;
+    background-image: url('../images/add-image-icon.png');
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    background-position: right;
+    border-radius: 4px;
+    min-height: 76px;
+}
+
+[data-theme="dark"] .add-object-option-icon.is-image-icon {
+    background-position: left;
+}
+
+.add-object-option-icon.is-qr-icon {
+    width: 80px;
+    background-image: url('../images/add-qr-icon.png');
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    background-position: right;
+    border-radius: 4px;
+    min-height: 76px;
+}
+
+[data-theme="dark"] .add-object-option-icon.is-qr-icon {
+    background-position: left;
 }
 
 .add-object-option-label {

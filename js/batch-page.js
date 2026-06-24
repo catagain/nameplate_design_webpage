@@ -668,6 +668,30 @@ function isObjectVisible(state, objectId) {
     return objectMeta ? objectMeta.visible !== false : false;
 }
 
+/**
+ * Generate a CSV-safe unique column key from text content.
+ * Falls back to the label or a generic fallback if text is empty.
+ */
+function buildTextKey(textContent, label, usedKeys, fallbackIndex) {
+    const fallback = label || `text${fallbackIndex}`;
+    // Remove chars unsafe for CSV/property names, limit to 30 chars
+    let base = textContent
+        ? textContent.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af_\-]+/g, '_').replace(/^_|_$/g, '').replace(/_+/g, '_').substring(0, 30) || fallback
+        : fallback;
+
+    if (!usedKeys.has(base)) {
+        usedKeys.add(base);
+        return base;
+    }
+
+    let counter = 2;
+    while (usedKeys.has(`${base}_${counter}`)) {
+        counter += 1;
+    }
+    usedKeys.add(`${base}_${counter}`);
+    return `${base}_${counter}`;
+}
+
 function getCustomObjectLabel(objectMeta, fallbackIndex) {
     if (!objectMeta) return `文字${fallbackIndex}`;
     if (objectMeta.type === 'text') {
@@ -677,15 +701,73 @@ function getCustomObjectLabel(objectMeta, fallbackIndex) {
     if (objectMeta.type === 'qr') {
         return `QRCode${fallbackIndex}`;
     }
+    if (objectMeta.type === 'image') {
+        return `小圖片 ${fallbackIndex}`;
+    }
     return `${objectMeta.type || 'object'}${fallbackIndex}`;
+}
+
+/**
+ * Load an image from URL and return it as a data URL.
+ */
+function loadImageAsDataUrl(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => reject(new Error(`無法載入圖片: ${url}`));
+        img.src = url;
+    });
+}
+
+/**
+ * Read a File object as a data URL string.
+ */
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error(`讀取檔案失敗: ${file.name}`));
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Apply image URL columns from a batch row to state.
+ * For each image object column, loads the URL as a data URL and sets it on the object.
+ */
+async function applyImageColumnsToState(nextState, row) {
+    for (const column of batchState.schema.optional) {
+        const value = String(row[column.key] || '').trim();
+        if (!value) continue;
+
+        const objectMeta = nextState.customObjects.find((item) => item && item.id === column.target && item.type === 'image');
+        if (!objectMeta) continue;
+
+        try {
+            objectMeta.dataUrl = await loadImageAsDataUrl(value);
+            objectMeta.name = value;
+        } catch (error) {
+            console.warn(`圖片物件載入失敗: ${value}`, error);
+        }
+    }
 }
 
 function buildSchema(state) {
     const required = [];
     const optional = [];
+    const usedKeys = new Set();
 
     let textIndex = 1;
     let qrIndex = 1;
+    let imageIndex = 1;
 
     state.objectOrder.forEach((objectId) => {
         if (!isObjectVisible(state, objectId)) {
@@ -719,9 +801,12 @@ function buildSchema(state) {
         }
 
         if (objectMeta.type === 'text') {
+            const textContent = String(objectMeta.text || '').trim();
+            const label = getCustomObjectLabel(objectMeta, textIndex);
+            const key = buildTextKey(textContent, label, usedKeys, textIndex);
             required.push({
-                key: `text_${objectMeta.id}`,
-                label: getCustomObjectLabel(objectMeta, textIndex),
+                key,
+                label,
                 type: 'text',
                 target: objectMeta.id,
                 required: true
@@ -739,6 +824,22 @@ function buildSchema(state) {
                 required: false
             });
             qrIndex += 1;
+            return;
+        }
+
+        if (objectMeta.type === 'image') {
+            const label = getCustomObjectLabel(objectMeta, imageIndex);
+            const key = buildTextKey(objectMeta.name || label, label, usedKeys, imageIndex);
+            optional.push({
+                key,
+                label,
+                type: 'url',
+                target: objectMeta.id,
+                required: false,
+                objectType: 'image'
+            });
+            imageIndex += 1;
+            return;
         }
     });
 
@@ -888,6 +989,7 @@ async function renderGalleryThumbnails() {
                 applyTextColumnToState(nextState, column, row);
             });
             const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+            await applyImageColumnsToState(nextState, row);
 
             // Create a temporary offscreen canvas for thumbnail
             const ratio = batchState.template.aspectRatio || {};
@@ -1036,17 +1138,30 @@ function renderTable() {
         const cells = batchState.schema.all.map((column) => {
             const inputType = column.type === 'url' ? 'url' : 'text';
             const listAttr = column.key === 'deviceTarget' ? 'list="deviceTargetSuggestions"' : '';
+            const isImageCol = column.objectType === 'image';
+            const rowValue = row[column.key] || '';
+            const isDataUrl = isImageCol && String(rowValue).startsWith('data:image/');
             return `
                 <td>
-                    <input
-                        class="batch-inline-input"
-                        type="${inputType}"
-                        ${listAttr}
-                        value="${escapeHtml(row[column.key] || '')}"
-                        data-row-index="${originalIndex}"
-                        data-key="${escapeHtml(column.key)}"
-                        placeholder="${escapeHtml(column.key)}"
-                    >
+                    <div class="batch-image-cell">
+                        ${isImageCol ? `
+                            <label class="batch-upload-label" title="上傳圖片">
+                                <input type="file" accept="image/*" class="batch-file-input" data-row-index="${originalIndex}" data-key="${escapeHtml(column.key)}">
+                                <span class="batch-upload-btn">📁</span>
+                            </label>
+                            ${isDataUrl ? `<img class="batch-thumb-preview" src="${escapeHtml(rowValue)}">` : ''}
+                        ` : ''}
+                        <input
+                            class="batch-inline-input"
+                            type="${inputType}"
+                            ${listAttr}
+                            value="${isDataUrl ? '' : escapeHtml(rowValue)}"
+                            data-row-index="${originalIndex}"
+                            data-key="${escapeHtml(column.key)}"
+                            placeholder="${escapeHtml(column.key)}"
+                            ${isImageCol ? `style="flex:1"` : ''}
+                        >
+                    </div>
                 </td>
             `;
         }).join('');
@@ -1233,6 +1348,34 @@ function attachEventListeners() {
         updateSummary();
     });
 
+    // File upload for image columns
+    document.getElementById('batchPreviewBody').addEventListener('change', async (event) => {
+        const fileInput = event.target.closest('input.batch-file-input[data-row-index][data-key]');
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            return;
+        }
+
+        const rowIndex = parseInt(fileInput.dataset.rowIndex, 10);
+        const key = fileInput.dataset.key;
+        if (!Number.isFinite(rowIndex) || !key || !batchState.rows[rowIndex]) {
+            return;
+        }
+
+        try {
+            const file = fileInput.files[0];
+            const dataUrl = await readFileAsDataUrl(file);
+            batchState.rows[rowIndex][key] = dataUrl;
+            renderTable();
+            setStatus(`已上傳圖片: ${file.name}`);
+        } catch (error) {
+            console.warn('圖片上傳失敗', error);
+            setStatus('圖片上傳失敗');
+        }
+
+        // Reset file input so re-selecting the same file triggers change again
+        fileInput.value = '';
+    });
+
     document.getElementById('batchPreviewBody').addEventListener('click', async (event) => {
         const btn = event.target.closest('button[data-action][data-row-index]');
         if (!btn) {
@@ -1277,6 +1420,7 @@ function attachEventListeners() {
                     applyTextColumnToState(nextState, column, row);
                 });
                 const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+                await applyImageColumnsToState(nextState, row);
                 window.nameplateState = nextState;
                 await batchState.renderer.setQrCodeDataUrl(defaultQrDataUrl);
                 batchState.renderer.render(nextState);
@@ -1436,7 +1580,15 @@ function downloadCurrentTableCsv() {
     const lines = [headers.map(escapeCsvCell).join(',')];
 
     batchState.rows.forEach((row) => {
-        const values = headers.map((key) => String(row[key] || ''));
+        const values = headers.map((key) => {
+            // Skip data URLs for image columns — don't export raw binary in CSV
+            const col = batchState.schema.all.find((c) => c.key === key);
+            const val = String(row[key] || '');
+            if (col && col.objectType === 'image' && val.startsWith('data:image/')) {
+                return '';
+            }
+            return val;
+        });
         lines.push(values.map(escapeCsvCell).join(','));
     });
 
@@ -1737,6 +1889,7 @@ async function applyRowPreview(row) {
     });
 
     const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+    await applyImageColumnsToState(nextState, row);
     window.nameplateState = nextState;
     await batchState.renderer.setQrCodeDataUrl(defaultQrDataUrl);
     batchState.renderer.render(nextState);
@@ -2046,6 +2199,7 @@ async function handleBatchExport() {
             });
 
             const defaultQrDataUrl = await applyQrColumnsToState(nextState, row);
+            await applyImageColumnsToState(nextState, row);
             window.nameplateState = nextState;
             batchState.renderer.setBackgroundOpacity(batchState.template.opacity || 100);
             await batchState.renderer.setQrCodeDataUrl(defaultQrDataUrl);
