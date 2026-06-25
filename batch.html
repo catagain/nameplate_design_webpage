@@ -18,29 +18,27 @@
             </div>
         </header>
 
+        <!-- 返回編輯頁（浮動左上角） -->
+        <a class="btn btn-secondary batch-back-float" href="index.html"><span class="back-arrow">←</span> 返回編輯頁</a>
+
         <!-- 步驟指示器 -->
         <div class="batch-steps">
             <div class="batch-step is-active" data-step="1">
                 <span class="batch-step-number">1</span>
-                <span class="batch-step-label">匯入資料</span>
+                <span class="batch-step-label">匯入資料與編輯</span>
             </div>
             <div class="batch-step-connector"></div>
             <div class="batch-step" data-step="2">
                 <span class="batch-step-number">2</span>
-                <span class="batch-step-label">檢視與編輯</span>
-            </div>
-            <div class="batch-step-connector"></div>
-            <div class="batch-step" data-step="3">
-                <span class="batch-step-number">3</span>
                 <span class="batch-step-label">批量輸出</span>
             </div>
         </div>
 
-        <!-- 步驟 1：匯入資料 -->
+        <!-- 步驟 1：匯入資料與編輯（合併） -->
         <div class="batch-step-content is-active" data-step="1">
-            <section class="edit-section">
-                <div class="batch-page-toolbar">
-                    <a class="btn btn-secondary" href="index.html">返回編輯頁</a>
+            <section class="edit-section" style="display:none;">
+                <div class="batch-page-toolbar" style="display:none;">
+                    <a class="btn btn-secondary" href="index.html"><span class="back-arrow">←</span> 返回編輯頁</a>
                 </div>
 
                 <div class="form-group hint batch-status-box">
@@ -84,21 +82,13 @@
                     </div>
                 </div>
 
-                <div id="batchSchemaSummary" class="batch-schema-list"></div>
+                <div id="batchSchemaSummary" class="batch-schema-list" style="display:none;"></div>
 
-                    <button id="batchTemplateBtn" class="btn btn-secondary" type="button">下載目前欄位範本</button>
+                    <button id="batchTemplateBtn" class="btn btn-secondary" type="button" style="display:none;">下載目前欄位範本</button>
 
-                <div id="batchStep1Preview" class="batch-preview-area"></div>
+                <div id="batchStep1Preview" class="batch-preview-area" style="display:none;"></div>
             </section>
 
-            <div class="batch-step-footer">
-                <button class="btn btn-secondary is-disabled" data-action="prev-step" id="batchStep1PrevBtn">上一步</button>
-                <button class="btn btn-primary" data-action="next-step">下一步</button>
-            </div>
-        </div>
-
-        <!-- 步驟 2：檢視與編輯 -->
-        <div class="batch-step-content" data-step="2">
             <section class="edit-section">
                 <h2>批量資料表</h2>
                 <div class="batch-summary" id="batchSummary">尚未建立資料</div>
@@ -140,13 +130,12 @@
             </section>
 
             <div class="batch-step-footer">
-                <button class="btn btn-secondary" data-action="prev-step">上一步</button>
                 <button class="btn btn-primary" data-action="next-step">下一步</button>
             </div>
         </div>
 
-        <!-- 步驟 3：批量輸出 -->
-        <div class="batch-step-content" data-step="3">
+        <!-- 步驟 2：批量輸出 -->
+        <div class="batch-step-content" data-step="2">
             <section class="edit-section">
                 <div id="batchExportTableContainer" class="batch-export-table-container">
                     <div class="batch-empty-state">尚無資料，請先匯入資料</div>

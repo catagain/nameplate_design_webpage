@@ -1207,7 +1207,7 @@ function renderStep1Preview() {
                         </svg>
                     </div>
                     <h3>尚未上傳資料</h3>
-                    <p>請上傳 CSV / XLSX / XLS 檔案，或前往「檢視與編輯」步驟手動新增資料列。</p>
+                    <p>請上傳 CSV / XLSX / XLS 檔案，或直接在下方表格手動新增資料列。</p>
                 </div>`;
             return;
         }
@@ -1303,10 +1303,6 @@ function attachEventListeners() {
 
     document.getElementById('batchTemplateBtn').addEventListener('click', downloadCurrentTemplateCsv);
     document.getElementById('batchDownloadCsvBtn').addEventListener('click', () => {
-        if (!batchState.rows.length) {
-            setStatus('請先建立資料表，再進行此操作');
-            return;
-        }
         downloadCurrentTableCsv();
     });
     document.getElementById('batchCsvInput').addEventListener('change', handleSpreadsheetUpload);
@@ -1594,7 +1590,10 @@ function downloadCurrentTableCsv() {
 
     const content = `\uFEFF${lines.join('\n')}`;
     downloadTextFile('batch-data.csv', content);
-    setStatus(`已下載目前表格 CSV（${batchState.rows.length} 列）。`);
+    const rowCount = batchState.rows.length;
+    setStatus(rowCount > 0
+        ? `已下載目前表格 CSV（${rowCount} 列）。`
+        : '已下載空白表格 CSV（僅含欄位名稱）。');
 }
 
 function parseCsvText(text) {
@@ -2127,7 +2126,7 @@ function onSavedDatasetSelectChange() {
 
 function updateActionButtons() {
     const hasData = batchState.rows.length > 0;
-    ['batchDownloadCsvBtn', 'batchSaveLocalBtn', 'batchExportBtn'].forEach((id) => {
+    ['batchSaveLocalBtn', 'batchExportBtn'].forEach((id) => {
         const btn = document.getElementById(id);
         if (!btn) return;
         if (hasData) {

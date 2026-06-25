@@ -374,6 +374,30 @@ input[type="text"]::placeholder {
     flex-wrap: wrap;
 }
 
+.back-arrow {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+.btn-secondary.batch-back-float {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    font-size: 14px;
+    padding: 6px 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    background: transparent;
+    color: var(--text-color, #333);
+    border: 1px solid var(--border-color, #ccc);
+    text-decoration: none;
+}
+.btn-secondary.batch-back-float:hover {
+    background: rgba(0,0,0,0.04);
+    color: var(--text-color, #333);
+    text-decoration: none;
+}
+
 .batch-schema-list {
     display: grid;
     gap: 16px;
