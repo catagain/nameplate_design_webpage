@@ -907,15 +907,8 @@ function renderMappingContent() {
     const container = document.getElementById('batchMappingContent');
     if (!container || !batchState.schema) return;
 
-    const getRequiredLabel = (column) => {
-        if (column.key === 'deviceTarget') return '<span class="mapping-device">選擇性</span>';
-        return batchState.schema.required.includes(column)
-            ? '<span class="mapping-required">必填</span>'
-            : '<span class="mapping-optional">選填</span>';
-    };
-
     let html = `<table class="batch-mapping-table">
-        <thead><tr><th>欄位 Key</th><th>顯示名稱</th><th>類型</th><th>對應物件</th><th>必填</th></tr></thead><tbody>`;
+        <thead><tr><th>欄位 Key</th><th>顯示名稱</th><th>類型</th><th>對應物件</th></tr></thead><tbody>`;
 
     batchState.schema.all.forEach(col => {
         const typeLabel = col.key === 'deviceTarget' ? '<span class="mapping-device">桌牌</span>'
@@ -926,7 +919,6 @@ function renderMappingContent() {
             <td>${escapeHtml(col.label)}</td>
             <td>${typeLabel}</td>
             <td><span class="mapping-object-id">${escapeHtml(col.target || '-')}</span></td>
-            <td>${getRequiredLabel(col)}</td>
         </tr>`;
     });
 
