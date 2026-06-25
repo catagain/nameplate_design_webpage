@@ -2235,6 +2235,43 @@ input[type="checkbox"] {
     max-width: 100%;
     height: auto;
     box-shadow: var(--shadow);
+    transition: filter 0.3s ease;
+}
+
+.canvas-wrapper.simulate-device #nameplate {
+    filter: brightness(0.82);
+}
+
+/* ========== 模擬桌牌顯示切換 ========== */
+.device-simulate-toggle {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    z-index: 10;
+    background: var(--bg-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.2s ease, background-color 0.3s ease, border-color 0.3s ease;
+    user-select: none;
+}
+.device-simulate-toggle:hover {
+    opacity: 1;
+}
+.device-simulate-toggle .checkbox-inline {
+    min-height: auto;
+    gap: 6px;
+}
+.device-simulate-toggle input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+.device-simulate-toggle span {
+    cursor: pointer;
+    white-space: nowrap;
 }
 
 .preview-info {

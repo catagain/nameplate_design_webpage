@@ -110,7 +110,7 @@ function generateCirclePaletteHTML(currentValue) {
     }
     html += '</div><div class="palette-row">';
     for (const base of COLOR_PALETTE_BASES) {
-        const darkL = Math.max(0, base.l - 10);
+        const darkL = base.l <= 10 ? 0 : (base.l >= 90 ? 90 : 30);
         const hex = hslToHex(base.h, base.s, darkL);
         const isActive = hex.toUpperCase() === (currentValue || '').toUpperCase();
         html += `<div class="rec-option${isActive ? ' is-active' : ''}" data-value="${hex}" title="${hex} ${base.name}（深色）">`;
@@ -125,7 +125,8 @@ function isColorInPalette(hexColor) {
     for (const base of COLOR_PALETTE_BASES) {
         const baseHex = hslToHex(base.h, base.s, base.l).toUpperCase();
         if (baseHex === normalized) return true;
-        const darkHex = hslToHex(base.h, base.s, Math.max(0, base.l - 10)).toUpperCase();
+        const darkL = base.l <= 10 ? 0 : (base.l >= 90 ? 90 : 30);
+        const darkHex = hslToHex(base.h, base.s, darkL).toUpperCase();
         if (darkHex === normalized) return true;
     }
     return false;
@@ -1355,6 +1356,33 @@ function initPreviewStickyPosition() {
     });
 }
 
+// ========== 模擬桌牌顯示 ==========
+function applySimulateDeviceEffect(enabled) {
+    const wrapper = document.querySelector('.canvas-wrapper');
+    if (!wrapper) return;
+    wrapper.classList.toggle('simulate-device', enabled);
+}
+
+function initDeviceSimulateToggle() {
+    const check = document.getElementById('simulateDeviceCheck');
+    if (!check) return;
+
+    // 從已加載的 state 同步
+    if (window.nameplateState && window.nameplateState.simulateDevicePreview !== undefined) {
+        check.checked = Boolean(window.nameplateState.simulateDevicePreview);
+    }
+    applySimulateDeviceEffect(check.checked);
+
+    check.addEventListener('change', function () {
+        const enabled = this.checked;
+        applySimulateDeviceEffect(enabled);
+        if (window.nameplateState) {
+            window.nameplateState.simulateDevicePreview = enabled;
+            saveSettings();
+        }
+    });
+}
+
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
     initRenderer();
@@ -1370,6 +1398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initAddObjectModal();
     initPreviewStickyPosition();
     initOnboardingTooltip();
+    initDeviceSimulateToggle();
     await initPhilipsDeviceDiscovery();
     // 預先嘗試載入 QRCode 函式庫，降低首次點擊等待時間
     ensureQrCodeLibraryLoaded();
@@ -5233,10 +5262,10 @@ function handlePresetClick(e) {
 
 function getPresetLabel(presetName) {
     const labels = {
-        corporate: '企業風格',
-        blue: '藍色優雅',
-        modern: '現代簡約',
-        tech: '科技感'
+        whiteBlack: '白底黑字',
+        darkBlueWhite: '深藍色底白字',
+        blackWhite: '黑底白字',
+        whiteDarkBlue: '白底深藍字'
     };
     return labels[presetName] || presetName;
 }
@@ -5630,6 +5659,13 @@ function syncControlsFromState(state, opacity = 100) {
     normalizeTextOffsetState(state);
     normalizeDefaultTextShadowState(state);
     normalizeDefaultTextColorState(state);
+
+    // 同步模擬桌牌狀態
+    const simulateCheck = document.getElementById('simulateDeviceCheck');
+    if (simulateCheck && state.simulateDevicePreview !== undefined) {
+        simulateCheck.checked = Boolean(state.simulateDevicePreview);
+        applySimulateDeviceEffect(simulateCheck.checked);
+    }
 
     document.getElementById('nameInput').value = state.name || '';
     document.getElementById('companyInput').value = state.company || '';

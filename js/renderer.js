@@ -724,6 +724,7 @@ window.nameplateState = {
     qrcodeOffsetY: 0,
     qrSize: 100,
     qrVisible: true,
+    simulateDevicePreview: true,
     objectVisibility: {
         'default-name': true,
         'default-company': true,
@@ -738,37 +739,37 @@ window.nameplateState = {
  * 快速預設樣式
  */
 const presets = {
-    corporate: {
-        bgColor: '#1e3a5f',
+    whiteBlack: {
+        bgColor: '#ffffff',
+        textColor: '#000000',
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
+        textShadow: false
+    },
+    darkBlueWhite: {
+        bgColor: '#030363',
         textColor: '#ffffff',
         nameFontSize: 120,
         companyFontSize: 50,
         positionFontSize: 50,
         textShadow: true
     },
-    blue: {
-        bgColor: '#e0f2fe',
-        textColor: '#0c4a6e',
-        nameFontSize: 120,
-        companyFontSize: 50,
-        positionFontSize: 50,
-        textShadow: false
-    },
-    modern: {
-        bgColor: '#ffffff',
-        textColor: '#1e293b',
-        nameFontSize: 120,
-        companyFontSize: 50,
-        positionFontSize: 50,
-        textShadow: false
-    },
-    tech: {
-        bgColor: '#0f172a',
-        textColor: '#e0e7ff',
+    blackWhite: {
+        bgColor: '#000000',
+        textColor: '#ffffff',
         nameFontSize: 120,
         companyFontSize: 50,
         positionFontSize: 50,
         textShadow: true
+    },
+    whiteDarkBlue: {
+        bgColor: '#ffffff',
+        textColor: '#030363',
+        nameFontSize: 120,
+        companyFontSize: 50,
+        positionFontSize: 50,
+        textShadow: false
     }
 };
 
