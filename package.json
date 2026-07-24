@@ -4,9 +4,13 @@
   "private": true,
   "description": "Philips tableside nameplate editor with integrated local middleware server",
   "main": "api-example.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node api-example.js",
-    "check": "node --check api-example.js"
+    "check": "node --check api-example.js",
+    "setup": "node setup.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

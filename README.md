@@ -106,6 +106,43 @@
 - Node.js 18+
 - npm
 
+### 環境設定（首次執行）
+
+首次使用或搬移到新電腦時，執行以下指令進行環境初始化：
+
+```bash
+node setup.js
+```
+
+此腳本會自動完成：
+- 檢查 Node.js 版本是否符合需求
+- 安裝所有 npm 相依套件
+- 若 `.env` 不存在，從 `.env.example` 建立預設環境設定檔
+- 確認 `uploads/` 資料目錄存在
+
+你也可以手動複製 `.env.example` 為 `.env` 並依需求編輯：
+
+```bash
+cp .env.example .env
+```
+
+#### 可用環境變數
+
+| 變數名稱 | 預設值 | 說明 |
+|---------|--------|------|
+| `PORT` | 3001 | 服務器端口號 |
+| `HOST` | 0.0.0.0 | 服務器綁定地址 |
+| `PUBLIC_BASE_URL` | (自動偵測) | 公開訪問基礎 URL |
+| `DISCOVERY_TIMEOUT_MS` | 900 | 設備探索 HTTP 請求超時（毫秒） |
+| `DISCOVERY_CACHE_MS` | 30000 | 設備探索結果快取時間（毫秒） |
+| `DISCOVERY_CONCURRENCY` | 24 | 設備探索並發請求數 |
+| `DISCOVERY_PORTS` | 80 | 設備探索掃描端口（多端口用逗號分隔） |
+| `PHILIPS_REQUEST_TIMEOUT_MS` | 8000 | Philips 桌牌請求超時（毫秒） |
+
+#### Node.js 版本管理
+
+專案內含 `.nvmrc` 與 `.node-version` 檔案，若使用 `nvm`、`fnm` 或 `nodenv` 等工具，會自動切換至 Node.js 18。
+
 ### 本機啟動
 
 ```bash
@@ -153,6 +190,10 @@ namePlate_web/
 │   ├── philips-devices.json    # 桌牌設定（名稱/IP/協定/port）伺服器端儲存
 │   ├── philips-callbacks.json
 │   └── upload-access-log.json
+├── .nvmrc                      # nvm / fnm Node 版本設定
+├── .node-version               # nodenv Node 版本設定
+├── .env.example                # 環境變數設定範例
+├── setup.js                    # 跨平台環境初始化腳本
 ├── batch-test.csv              # 批量測試資料
 ├── start-nameplate.bat
 ├── start-nameplate.sh
